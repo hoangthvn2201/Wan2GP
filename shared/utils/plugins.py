@@ -203,6 +203,7 @@ BUNDLED_PLUGINS = {
     "wan2gp-motion-designer",
     "wan2gp-sample",
     "wan2gp-process-full-video",
+    "wan2gp-video-creator",
 }
 USER_PLUGIN_INSERT_POSITION = 1
 
