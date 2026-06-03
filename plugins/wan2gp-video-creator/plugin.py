@@ -13,7 +13,7 @@ import gradio as gr
 
 from shared.utils.plugins import WAN2GPPlugin
 
-from . import assembly, llm_client, model_registry, orchestrator, scene_model
+from . import assembly, llm_client, model_registry, orchestrator, scene_model, vieneu_tts
 
 PlugIn_Name = "Video Creator"
 PlugIn_Id = "VideoCreator"
@@ -91,6 +91,9 @@ class VideoCreatorPlugin(WAN2GPPlugin):
         images = model_registry.list_image_models(dmt, gmd, gmn)
         tts = model_registry.list_tts_models(dmt, gmd, gmn)
         ltx2 = model_registry.list_ltx2_video_models(dmt, gmd, gbt, gmn)
+        # VieNeu-TTS: a default-voice TTS synthesized directly by the plugin (no
+        # reference audio needed). Offered as the first/default narration option.
+        tts = [(vieneu_tts.VIENEU_LABEL, vieneu_tts.VIENEU_MODEL_KEY)] + tts
         return images, tts, ltx2
 
     def _out_dir(self) -> str:
@@ -223,6 +226,7 @@ class VideoCreatorPlugin(WAN2GPPlugin):
                                 orchestrator.run_stage_over_scenes(
                                     api_session, pl, stage, [_i], active_job,
                                     lambda r, d: progress(r, desc=d), cancel_flag,
+                                    self._out_dir(),
                                 )
                                 return pl
                             return _regen
@@ -321,6 +325,7 @@ class VideoCreatorPlugin(WAN2GPPlugin):
                 orchestrator.run_stage_over_scenes(
                     api_session, pl, stage, all_idx, active_job,
                     lambda r, d: progress(r, desc=d), cancel_flag,
+                    self._out_dir(),
                 )
                 return pl, f"Stage '{stage}' complete."
             return _run
@@ -337,6 +342,7 @@ class VideoCreatorPlugin(WAN2GPPlugin):
             cancel_flag["cancel"] = False
             orchestrator.run_full_pipeline(
                 api_session, pl, active_job, lambda r, d: progress(r, desc=d), cancel_flag,
+                self._out_dir(),
             )
             master, warnings = assembly.assemble(pl, self._out_dir())
             msg = "✅ Pipeline complete." if master else "⚠️ Pipeline ran; assembly incomplete."

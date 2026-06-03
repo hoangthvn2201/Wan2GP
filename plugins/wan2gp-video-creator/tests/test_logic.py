@@ -47,10 +47,10 @@ def test_scene_mappers():
     assert sm.scene_to_image_settings(pl, sc)["model_type"] == "qwen_image_20B"
     sc["image_path"] = "/tmp/x.png"; sc["use_start_image"] = True
     vis = sm.scene_to_video_settings(pl, sc)
-    assert vis["image_start"] == "/tmp/x.png" and vis["num_inference_steps"] == 8 and vis["audio_prompt_type"] == ""
-    pl["models"]["video_model"] = "ltx2_22B"; pl["narration_mode"] = "ltx2_native"; sc["use_start_image"] = False
+    assert vis["image_start"] == "/tmp/x.png" and vis["num_inference_steps"] == 8
+    pl["models"]["video_model"] = "ltx2_22B"; sc["use_start_image"] = False
     vis2 = sm.scene_to_video_settings(pl, sc)
-    assert "image_start" not in vis2 and vis2["num_inference_steps"] == 30 and "audio_prompt_type" not in vis2
+    assert "image_start" not in vis2 and vis2["num_inference_steps"] == 30
     tts = sm.scene_to_tts_settings(pl, sc)
     assert tts["prompt"] == "nt" and tts["alt_prompt"] == "calm"
 

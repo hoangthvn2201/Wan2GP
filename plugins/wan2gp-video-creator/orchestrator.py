@@ -8,7 +8,9 @@ block on `job.result()`, then move on. This mirrors the pattern in
 
 from typing import Any, Callable, Dict, List, Optional
 
-from . import scene_model
+import os
+
+from . import scene_model, vieneu_tts
 
 
 class ProgressAdapter:
@@ -51,6 +53,7 @@ def run_stage_over_scenes(
     active_job: Dict[str, Any],
     report: Optional[Callable[[float, str], None]],
     cancel_flag: Dict[str, bool],
+    out_dir: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Run a single stage ("image" | "video" | "tts") over the given scenes.
 
@@ -58,6 +61,7 @@ def run_stage_over_scenes(
     """
     settings_fn = scene_model.settings_fn_for(stage)
     total = len(scene_indices)
+    use_vieneu = stage == "tts" and pipeline["models"].get("tts_model") == vieneu_tts.VIENEU_MODEL_KEY
     for n, i in enumerate(scene_indices):
         if cancel_flag.get("cancel"):
             break
@@ -70,6 +74,20 @@ def run_stage_over_scenes(
 
         scene["status"][stage] = "running"
         scene["error"] = None
+
+        # VieNeu-TTS is synthesized directly (not via the WanGP queue).
+        if use_vieneu:
+            try:
+                if report is not None:
+                    report(0.0, f"Scene {i + 1}/{total} [tts] VieNeu-TTS synthesizing...")
+                out = os.path.join(out_dir or ".", f"vc_narration_scene{i + 1}.wav")
+                vieneu_tts.synthesize(scene["narration_text"], out)
+                scene["audio_path"] = out
+                scene["status"]["tts"] = "done"
+            except Exception as e:  # noqa: BLE001
+                scene["status"]["tts"] = "error"
+                scene["error"] = f"VieNeu-TTS: {e}"
+            continue
 
         settings = settings_fn(pipeline, scene)
         cb = ProgressAdapter(report, f"Scene {i + 1}/{total} [{stage}]")
@@ -108,6 +126,7 @@ def run_full_pipeline(
     active_job: Dict[str, Any],
     report: Optional[Callable[[float, str], None]],
     cancel_flag: Dict[str, bool],
+    out_dir: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Stage-major run (all images -> all videos -> all narration).
 
@@ -118,17 +137,17 @@ def run_full_pipeline(
 
     # Stage B - start images (only scenes that opted in).
     if pipeline["models"].get("image_model"):
-        run_stage_over_scenes(api_session, pipeline, "image", all_idx, active_job, report, cancel_flag)
+        run_stage_over_scenes(api_session, pipeline, "image", all_idx, active_job, report, cancel_flag, out_dir)
     if cancel_flag.get("cancel"):
         return pipeline
 
     # Stage C - video.
-    run_stage_over_scenes(api_session, pipeline, "video", all_idx, active_job, report, cancel_flag)
+    run_stage_over_scenes(api_session, pipeline, "video", all_idx, active_job, report, cancel_flag, out_dir)
     if cancel_flag.get("cancel"):
         return pipeline
 
     # Stage D - narration (skip entirely in LTX-2 native audio mode).
     if pipeline.get("narration_mode", "tts") == "tts" and pipeline["models"].get("tts_model"):
-        run_stage_over_scenes(api_session, pipeline, "tts", all_idx, active_job, report, cancel_flag)
+        run_stage_over_scenes(api_session, pipeline, "tts", all_idx, active_job, report, cancel_flag, out_dir)
 
     return pipeline

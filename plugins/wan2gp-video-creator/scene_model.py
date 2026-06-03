@@ -127,10 +127,9 @@ def scene_to_video_settings(pipeline: Dict[str, Any], scene: Dict[str, Any]) -> 
         settings.update(copy.deepcopy(LTX2_DISTILLED_DEFAULTS))
     else:
         settings.update(copy.deepcopy(LTX2_DEV_DEFAULTS))
-    # When narration comes from a separate TTS track, ask LTX-2 for silent video
-    # (README "Silent Movie Mode": leave control audio empty -> no lip motion).
-    if pipeline.get("narration_mode", "tts") == "tts":
-        settings["audio_prompt_type"] = ""
+    # In Separate-TTS mode we don't force LTX-2 to be silent: the final mux
+    # (mux_narration: -map 0:v:0 -map 1:a:0) replaces the clip's audio with the
+    # narration track anyway, so we leave audio settings at the model defaults.
     return settings
 
 

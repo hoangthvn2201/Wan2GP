@@ -35,6 +35,24 @@ End-to-end guided pipeline for WanGP:
   generates narration; ffmpeg muxes it onto each clip.
 - **LTX-2 native audio**: LTX-2 generates audio inline; the TTS stage is skipped.
 
+### TTS models & the reference-voice gap
+Most WanGP TTS models (Qwen3 Base, OmniVoice, Chatterbox, Index TTS) are **voice
+cloning** — they need a reference voice sample and will error without one. For
+narration the dropdown therefore offers two reference-free choices:
+- **VieNeu-TTS (default voice)** *(default)* — a bilingual VI/EN TTS with built-in
+  preset voices, synthesized **directly by the plugin** (outside WanGP's pipeline).
+  No reference audio needed. Install once on the WanGP host:
+  ```bash
+  pip install vieneu            # CPU / turbo
+  pip install "vieneu[gpu]"     # standard GPU model (higher quality)
+  ```
+  First use downloads weights from HF (`pnnbao-ump/VieNeu-TTS-v2`).
+- **Qwen3 Voice Design** — synthesizes a voice from the per-scene *Voice hint*
+  description (also reference-free).
+
+A per-scene reference-voice upload (for the cloning models) is a planned option and
+is not yet wired in.
+
 ## Constraints / notes
 - WanGP runs **one generation at a time**, so the pipeline is strictly sequential.
 - Stage-major order (all images, then all videos, then all narration) minimises
