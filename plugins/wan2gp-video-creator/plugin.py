@@ -231,9 +231,11 @@ class VideoCreatorPlugin(WAN2GPPlugin):
                             image_model_dd, video_variant, video_model_dd,
                             narration_mode, tts_model_dd, resolution, video_length,
                         ]
-                        rb_img.click(_make_regen("image"), inputs=regen_inputs, outputs=[pipeline], queue=False)
-                        rb_vid.click(_make_regen("video"), inputs=regen_inputs, outputs=[pipeline], queue=False)
-                        rb_tts.click(_make_regen("tts"), inputs=regen_inputs, outputs=[pipeline], queue=False)
+                        # NOTE: no queue=False here — gr.render re-renders are delivered
+                        # through the queue, and gr.Progress also requires it.
+                        rb_img.click(_make_regen("image"), inputs=regen_inputs, outputs=[pipeline])
+                        rb_vid.click(_make_regen("video"), inputs=regen_inputs, outputs=[pipeline])
+                        rb_tts.click(_make_regen("tts"), inputs=regen_inputs, outputs=[pipeline])
 
             # ---------------- Run controls ----------------
             with gr.Row():
@@ -285,7 +287,6 @@ class VideoCreatorPlugin(WAN2GPPlugin):
             _gen_script,
             inputs=[llm_base_url, llm_api_key, llm_model, brief, num_scenes_llm] + run_config_inputs,
             outputs=[pipeline, overall_script, progress_md],
-            queue=False,
         )
 
         def _build_blank(n, *run_cfg):
@@ -299,7 +300,6 @@ class VideoCreatorPlugin(WAN2GPPlugin):
             _build_blank,
             inputs=[num_scenes_manual] + run_config_inputs,
             outputs=[pipeline, progress_md],
-            queue=False,
         )
 
         # ---- overall_script edit persists ----
@@ -325,9 +325,9 @@ class VideoCreatorPlugin(WAN2GPPlugin):
                 return pl, f"Stage '{stage}' complete."
             return _run
 
-        run_images_btn.click(_make_run_stage("image"), inputs=run_config_inputs, outputs=[pipeline, progress_md], queue=False)
-        run_videos_btn.click(_make_run_stage("video"), inputs=run_config_inputs, outputs=[pipeline, progress_md], queue=False)
-        run_tts_btn.click(_make_run_stage("tts"), inputs=run_config_inputs, outputs=[pipeline, progress_md], queue=False)
+        run_images_btn.click(_make_run_stage("image"), inputs=run_config_inputs, outputs=[pipeline, progress_md])
+        run_videos_btn.click(_make_run_stage("video"), inputs=run_config_inputs, outputs=[pipeline, progress_md])
+        run_tts_btn.click(_make_run_stage("tts"), inputs=run_config_inputs, outputs=[pipeline, progress_md])
 
         def _run_all(pl, img_model, vid_var, vid_model_exact, narr_mode, tts_model, res, vlen,
                      progress=gr.Progress(track_tqdm=False)):
@@ -348,7 +348,6 @@ class VideoCreatorPlugin(WAN2GPPlugin):
             _run_all,
             inputs=run_config_inputs,
             outputs=[pipeline, progress_md, final_video],
-            queue=False,
         )
 
         def _cancel():
@@ -365,7 +364,7 @@ class VideoCreatorPlugin(WAN2GPPlugin):
             if master:
                 return master, "✅ Master created. " + " ".join(warnings)
             return gr.update(), "❌ " + " ".join(warnings or ["Assembly failed."])
-        assemble_btn.click(_assemble, inputs=[pipeline], outputs=[final_video, assemble_status], queue=False)
+        assemble_btn.click(_assemble, inputs=[pipeline], outputs=[final_video, assemble_status])
 
     # ----- shared: fold UI run-config into the pipeline state -------------
     def _sync_run_config(self, pl, img_model, vid_var, vid_model_exact, narr_mode, tts_model, res, vlen):
