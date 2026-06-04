@@ -177,30 +177,86 @@ class LLMService:
 
     def _raise_empty(self, model: str, finish_reason, message) -> str:
         """Raise a descriptive error when no usable content was returned."""
-        reasoning = getattr(message, "reasoning_content", None)
+        # vLLM/SGLang call it reasoning_content; Ollama's OpenAI-compat layer
+        # calls it reasoning. Extra fields land in model_extra on the SDK object.
+        reasoning = getattr(message, "reasoning_content", None) or getattr(
+            message, "reasoning", None
+        )
+        if reasoning is None and getattr(message, "model_extra", None):
+            reasoning = message.model_extra.get("reasoning_content") or message.model_extra.get("reasoning")
 
         if finish_reason == "length":
             hint = (
                 "the model hit max_tokens before emitting an answer. This is "
-                "common with reasoning models (Qwen3, DeepSeek-R1) that spend "
-                "the token budget on chain-of-thought. Increase max_tokens, or "
-                "set llm.enable_thinking=false in your config to disable thinking."
+                "common with reasoning models (Qwen3, DeepSeek-R1, MiniMax-M3) "
+                "that spend the token budget on chain-of-thought. Increase "
+                "max_tokens, or set llm.enable_thinking=false in your config "
+                "to disable thinking."
             )
         elif reasoning:
             hint = (
-                "the model emitted only reasoning_content and no final answer. "
-                "Set llm.enable_thinking=false in your config to disable thinking "
-                "mode for this provider."
+                "the model spent the whole token budget on reasoning and "
+                "emitted no final answer. Increase max_tokens, or set "
+                "llm.enable_thinking=false in your config (note: the flag is "
+                "only honored by vLLM/SGLang-style servers, not by Ollama)."
             )
         else:
             hint = (
                 "the provider returned empty content. Check the model name and "
-                "that the endpoint is OpenAI-compatible."
+                "that the endpoint is OpenAI-compatible. If this is a reasoning "
+                "model, the token budget may have been consumed by hidden "
+                "chain-of-thought - try a larger max_tokens."
             )
 
         raise ValueError(
             f"LLM returned no content (model={model}, finish_reason={finish_reason}): {hint}"
         )
+
+    async def _chat_with_retry(
+        self,
+        client: AsyncOpenAI,
+        model: str,
+        messages: list,
+        temperature: float,
+        max_tokens: int,
+        **kwargs,
+    ) -> str:
+        """
+        Run a chat completion, retrying once with a larger token budget when
+        the model returns empty content.
+
+        Reasoning models (MiniMax-M3, Qwen3, DeepSeek-R1, ...) emit hidden
+        chain-of-thought that counts against max_tokens. A small budget (e.g.
+        the 50 tokens historically used for title generation) is then entirely
+        consumed by thinking and `message.content` comes back empty. One retry
+        with a boosted budget recovers transparently.
+        """
+        request_kwargs = self._inject_thinking_control(kwargs)
+
+        async def _attempt(budget: int) -> str:
+            response = await client.chat.completions.create(
+                model=model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=budget,
+                **request_kwargs,
+            )
+            return self._extract_content(response, model, budget)
+
+        try:
+            return await _attempt(max_tokens)
+        except ValueError as e:
+            if "LLM returned no content" not in str(e):
+                raise
+            boosted = max(min(max_tokens * 8, 8192), 2000)
+            if boosted <= max_tokens:
+                raise
+            logger.warning(
+                f"LLM returned no content with max_tokens={max_tokens} "
+                f"(reasoning model spent the budget on chain-of-thought?). "
+                f"Retrying once with max_tokens={boosted}..."
+            )
+            return await _attempt(boosted)
 
     async def __call__(
         self,
@@ -271,16 +327,16 @@ class LLMService:
                     **kwargs
                 )
             else:
-                # Standard text output mode
-                response = await client.chat.completions.create(
+                # Standard text output mode (retries once with a larger budget
+                # if a reasoning model returns empty content)
+                result = await self._chat_with_retry(
+                    client=client,
                     model=final_model,
                     messages=[{"role": "user", "content": prompt}],
                     temperature=temperature,
                     max_tokens=max_tokens,
-                    **self._inject_thinking_control(kwargs)
+                    **kwargs
                 )
-
-                result = self._extract_content(response, final_model, max_tokens)
                 logger.debug(f"LLM response length: {len(result)} chars")
 
                 return result
@@ -320,16 +376,17 @@ class LLMService:
         # Build JSON schema instruction and append to prompt
         json_schema_instruction = self._get_json_schema_instruction(response_type)
         enhanced_prompt = f"{prompt}\n\n{json_schema_instruction}"
-        
-        # Call LLM with enhanced prompt
-        response = await client.chat.completions.create(
+
+        # Call LLM with enhanced prompt (retries once with a larger budget
+        # if a reasoning model returns empty content)
+        content = await self._chat_with_retry(
+            client=client,
             model=model,
             messages=[{"role": "user", "content": enhanced_prompt}],
             temperature=temperature,
             max_tokens=max_tokens,
-            **self._inject_thinking_control(kwargs)
+            **kwargs
         )
-        content = self._extract_content(response, model, max_tokens)
 
         logger.debug(f"Structured output response length: {len(content)} chars")
 

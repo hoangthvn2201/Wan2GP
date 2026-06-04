@@ -59,7 +59,10 @@ async def generate_title(
     
     # Pass max_length to prompt so LLM knows the character limit
     prompt = build_title_generation_prompt(content, max_length=max_length)
-    response = await llm_service(prompt, temperature=0.7, max_tokens=50)
+    # Note: the budget must cover chain-of-thought for reasoning models
+    # (MiniMax-M3, Qwen3, DeepSeek-R1, ...) which spend tokens thinking before
+    # emitting the short title; the response is truncated to max_length below.
+    response = await llm_service(prompt, temperature=0.7, max_tokens=1024)
     
     # Clean up response
     title = response.strip()
