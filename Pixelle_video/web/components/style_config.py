@@ -763,11 +763,48 @@ def render_style_config(pixelle_video):
             # Prompt prefix input
             # Get current prompt_prefix from config (based on media type)
             current_prefix = comfyui_config.get(media_config_key, {}).get("prompt_prefix", "")
-        
+
+            # Style preset selector (fills the prompt prefix below; still editable)
+            from pixelle_video.style_presets import (
+                STYLE_PROMPT_PREFIXES,
+                find_style_by_prefix,
+                get_style_display_name,
+                get_style_prefix,
+            )
+
+            _CUSTOM_STYLE = "custom"
+            preset_ids = [s["id"] for s in STYLE_PROMPT_PREFIXES] + [_CUSTOM_STYLE]
+            preset_labels = {
+                s["id"]: get_style_display_name(s, current_lang)
+                for s in STYLE_PROMPT_PREFIXES
+            }
+            preset_labels[_CUSTOM_STYLE] = tr("style.prefix_preset_custom")
+
+            # Preselect the preset matching the configured prefix (else Custom)
+            matched_style = find_style_by_prefix(current_prefix)
+            default_preset_index = (
+                preset_ids.index(matched_style) if matched_style else preset_ids.index(_CUSTOM_STYLE)
+            )
+
+            selected_style = st.selectbox(
+                tr("style.prefix_preset"),
+                preset_ids,
+                index=default_preset_index,
+                format_func=lambda sid: preset_labels.get(sid, sid),
+                help=tr("style.prefix_preset_help"),
+                key=f"style_prefix_preset_{media_config_key}",
+            )
+
+            # Preset fills the text area; "Custom" keeps the configured value
+            if selected_style == _CUSTOM_STYLE:
+                prefix_value = current_prefix
+            else:
+                prefix_value = get_style_prefix(selected_style) or current_prefix
+
             # Prompt prefix input (temporary, not saved to config)
             prompt_prefix = st.text_area(
                 tr('style.prompt_prefix'),
-                value=current_prefix,
+                value=prefix_value,
                 placeholder=tr("style.prompt_prefix_placeholder"),
                 height=80,
                 label_visibility="visible",

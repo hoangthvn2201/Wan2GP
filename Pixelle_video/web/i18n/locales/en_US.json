@@ -56,6 +56,9 @@
     "style.prompt_prefix_how": "Enter style description in the input box below. To save permanently, edit the config.yaml file",
     "style.prompt_prefix_placeholder": "Enter style prefix (leave empty for config default)",
     "style.prompt_prefix_help": "This text will be automatically added before all image generation prompts. To permanently change, edit config.yaml",
+    "style.prefix_preset": "🎨 Style Preset",
+    "style.prefix_preset_help": "Pick a predefined visual style to fill the prompt prefix below. You can still edit the text afterwards. Choose Custom to use the value from config.yaml.",
+    "style.prefix_preset_custom": "✏️ Custom",
     "style.custom": "Custom",
     "style.description": "Style Description",
     "style.description_placeholder": "Describe the illustration style you want (any language)...",
@@ -494,11 +497,9 @@
     "action_transfer.assets.image_warning": "Upload an image for the transfer motion",
     "action_transfer.assets.video_warning": "Upload a reference video for motion transfer",
     "action_transfer.assets.prompt_warning": "Please enter a video prompt",
-
     "faq.expand_to_view": "FAQ",
     "faq.load_error": "Failed to load FAQ content",
     "faq.more_help": "Need more help?",
-
     "selfhost.warning.title": "You have selected a SelfHost (local) workflow. Please confirm the following:",
     "selfhost.warning.message": "1. First, **load and run** `{workflow_path}` workflow in your ComfyUI environment ({comfyui_url})\n2. Ensure the workflow **runs successfully** without missing nodes or models\n3. After the workflow is verified, return to this project to use it",
     "selfhost.warning.hint": "⚠️ If you haven't verified this workflow in ComfyUI, subsequent runs **will definitely fail** (usually 400 error)! Do not skip this step.",
