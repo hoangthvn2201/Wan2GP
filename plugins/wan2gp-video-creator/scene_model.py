@@ -107,6 +107,9 @@ def scene_to_image_settings(pipeline: Dict[str, Any], scene: Dict[str, Any]) -> 
         "resolution": pipeline.get("resolution", DEFAULT_RESOLUTION),
         "seed": scene.get("image_seed", -1),
         "batch_size": 1,
+        # REQUIRED: without it validate_task defaults image_mode to 0 (= video
+        # output) and the "image" comes back as a 1-frame video file (wgp.py:7996).
+        "image_mode": 1,
     }
 
 
@@ -120,8 +123,11 @@ def scene_to_video_settings(pipeline: Dict[str, Any], scene: Dict[str, Any]) -> 
         "seed": scene.get("video_seed", -1),
     }
     # Start frame only when the optional image stage was used and produced one.
+    # image_prompt_type must contain "S" or wgp.py silently drops image_start
+    # (wgp.py:1124). LTX-2 allows "TSEVL". Omit it for pure text-to-video.
     if scene.get("use_start_image") and scene.get("image_path"):
         settings["image_start"] = scene["image_path"]
+        settings["image_prompt_type"] = "S"
     # Variant-specific tuning.
     if "distilled" in video_model:
         settings.update(copy.deepcopy(LTX2_DISTILLED_DEFAULTS))

@@ -44,13 +44,20 @@ def test_scene_mappers():
     pl = sm.scenes_from_llm(script)
     pl["models"] = {"image_model": "qwen_image_20B", "video_model": "ltx2_22B_distilled", "tts_model": "qwen3_tts_base"}
     sc = pl["scenes"][0]
-    assert sm.scene_to_image_settings(pl, sc)["model_type"] == "qwen_image_20B"
+    ims = sm.scene_to_image_settings(pl, sc)
+    assert ims["model_type"] == "qwen_image_20B"
+    # image_mode=1 is REQUIRED: validate_task defaults it to 0 (video output),
+    # which made the image stage return a 1-frame video file.
+    assert ims["image_mode"] == 1
     sc["image_path"] = "/tmp/x.png"; sc["use_start_image"] = True
     vis = sm.scene_to_video_settings(pl, sc)
     assert vis["image_start"] == "/tmp/x.png" and vis["num_inference_steps"] == 8
+    # "S" is REQUIRED or wgp.py silently drops image_start (start frame ignored).
+    assert vis["image_prompt_type"] == "S"
     pl["models"]["video_model"] = "ltx2_22B"; sc["use_start_image"] = False
     vis2 = sm.scene_to_video_settings(pl, sc)
-    assert "image_start" not in vis2 and vis2["num_inference_steps"] == 30
+    assert "image_start" not in vis2 and "image_prompt_type" not in vis2
+    assert vis2["num_inference_steps"] == 30
     tts = sm.scene_to_tts_settings(pl, sc)
     assert tts["prompt"] == "nt" and tts["alt_prompt"] == "calm"
 
