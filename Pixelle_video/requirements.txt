@@ -1,0 +1,34 @@
+# Pixelle-Video extra dependencies on top of Wan2GP
+#
+# Wan2GP's own requirements file (../requirements.txt) already provides the
+# shared packages: loguru, pydantic, moviepy, ffmpeg-python, numpy, pillow,
+# httpx / fastapi / uvicorn / python-multipart (via gradio), pyyaml (via
+# omegaconf), certifi, ...
+#
+# ONE-TIME INSTALL (from the Wan2GP repo root, inside the Wan2GP env):
+#   pip install -r requirements.txt -r Pixelle_video/requirements.txt
+#   playwright install --with-deps chromium
+#
+# After that, both `python wgp.py` and Pixelle-Video (web UI, API, notebook)
+# run from the same environment - no second install needed.
+
+# Web UI
+streamlit>=1.40.0
+
+# LLM client (script / image prompt generation)
+openai>=2.6.0
+
+# Local TTS (default, runs on CPU)
+edge-tts==7.2.7
+
+# ComfyUI / RunningHub backends (optional fallback, kept for selfhost/runninghub workflows)
+comfykit>=0.1.12
+
+# HTML frame template rendering
+playwright>=1.48.0
+beautifulsoup4>=4.14.2
+
+# Explicit pins shared with Wan2GP's transitive dependencies
+httpx>=0.28.1
+pyyaml>=6.0.0
+aiohttp>=3.9.0

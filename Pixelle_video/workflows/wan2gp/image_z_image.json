@@ -1,0 +1,13 @@
+{
+  "source": "wan2gp",
+  "description": "Z-Image Turbo 6B text-to-image (fast, 8 steps), loaded in-process via WanGP",
+  "model_type": "z_image",
+  "media_type": "image",
+  "resolution_multiple": 16,
+  "max_pixels": 1572864,
+  "settings": {
+    "image_mode": 1,
+    "batch_size": 1,
+    "num_inference_steps": 8
+  }
+}

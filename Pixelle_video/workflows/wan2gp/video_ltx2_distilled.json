@@ -1,0 +1,14 @@
+{
+  "source": "wan2gp",
+  "description": "LTX-2 2.3 Distilled 22B text-to-video with audio (8 steps), loaded in-process via WanGP",
+  "model_type": "ltx2_22B_distilled",
+  "media_type": "video",
+  "fps": 24,
+  "frame_quant": 8,
+  "resolution_multiple": 32,
+  "max_pixels": 921600,
+  "max_frames": 241,
+  "settings": {
+    "num_inference_steps": 8
+  }
+}
