@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="template:media-width" content="1024">
+  <meta name="template:media-height" content="1024">
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{title}}</title>
+  <style>
+    :root {
+      --bg: #0a0e14;
+      --bg-panel: #0e141f;
+      --fg: #e8f1fb;
+      --muted: #7d93ad;
+      --accent: #4d9fff;
+      --accent2: #3ddc97;
+      --accent-dim: rgba(77, 159, 255, 0.35);
+      --accent2-dim: rgba(61, 220, 151, 0.35);
+      --border: rgba(125, 147, 173, 0.22);
+      --mono: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', 'Consolas', monospace;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: 'PingFang SC', 'Source Han Sans', 'Microsoft YaHei', sans-serif;
+      -webkit-font-smoothing: antialiased;
+      overflow: hidden;
+    }
+
+    .frame {
+      position: relative;
+      width: 1080px;
+      height: 1920px;
+      box-sizing: border-box;
+      padding: 70px 50px 50px 50px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 44px;
+      z-index: 1;
+    }
+
+    /* ============ Background layer ============ */
+    .bg-layer {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      overflow: hidden;
+      pointer-events: none;
+    }
+
+    /* Blueprint grid */
+    .bg-grid {
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(77, 159, 255, 0.045) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(77, 159, 255, 0.045) 1px, transparent 1px),
+        linear-gradient(rgba(77, 159, 255, 0.08) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(77, 159, 255, 0.08) 1px, transparent 1px);
+      background-size: 40px 40px, 40px 40px, 200px 200px, 200px 200px;
+    }
+
+    /* Soft radial glows */
+    .bg-glow-1 {
+      position: absolute;
+      width: 700px;
+      height: 700px;
+      top: -200px;
+      right: -250px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(77, 159, 255, 0.12) 0%, transparent 65%);
+    }
+
+    .bg-glow-2 {
+      position: absolute;
+      width: 600px;
+      height: 600px;
+      bottom: -150px;
+      left: -200px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(61, 220, 151, 0.09) 0%, transparent 65%);
+    }
+
+    /* Circuit traces */
+    .circuit {
+      position: absolute;
+      stroke: var(--accent-dim);
+      fill: none;
+      stroke-width: 2;
+    }
+
+    .circuit-node {
+      fill: var(--accent);
+      opacity: 0.6;
+    }
+
+    .circuit-node.green { fill: var(--accent2); }
+
+    /* Vertical data column */
+    .data-column {
+      position: absolute;
+      right: 18px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-family: var(--mono);
+      font-size: 15px;
+      line-height: 2.2;
+      color: rgba(125, 147, 173, 0.4);
+      writing-mode: vertical-rl;
+      letter-spacing: 4px;
+    }
+
+    .data-column-left {
+      position: absolute;
+      left: 18px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-family: var(--mono);
+      font-size: 15px;
+      line-height: 2.2;
+      color: rgba(125, 147, 173, 0.4);
+      writing-mode: vertical-rl;
+      letter-spacing: 4px;
+    }
+
+    /* ============ Header ============ */
+    .header {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+      align-items: center;
+    }
+
+    /* Top system bar */
+    .sys-bar {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-family: var(--mono);
+      font-size: 20px;
+      color: var(--muted);
+      letter-spacing: 2px;
+      padding-bottom: 18px;
+      border-bottom: 1px solid var(--border);
+      position: relative;
+    }
+
+    .sys-bar::after {
+      content: '';
+      position: absolute;
+      bottom: -1px;
+      left: 0;
+      width: 180px;
+      height: 2px;
+      background: linear-gradient(90deg, var(--accent), transparent);
+    }
+
+    .sys-bar .left-group {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .status-led {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--accent2);
+      box-shadow: 0 0 12px var(--accent2-dim), 0 0 4px var(--accent2);
+    }
+
+    .sys-bar .right-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .signal-bars {
+      display: flex;
+      align-items: flex-end;
+      gap: 3px;
+      height: 18px;
+    }
+
+    .signal-bars span {
+      width: 5px;
+      background: var(--accent);
+      border-radius: 1px;
+    }
+
+    .signal-bars span:nth-child(1) { height: 6px; opacity: 0.5; }
+    .signal-bars span:nth-child(2) { height: 10px; opacity: 0.7; }
+    .signal-bars span:nth-child(3) { height: 14px; opacity: 0.85; }
+    .signal-bars span:nth-child(4) { height: 18px; }
+
+    /* Title */
+    .title-block {
+      text-align: center;
+      position: relative;
+      padding: 0 40px;
+    }
+
+    .title-kicker {
+      font-family: var(--mono);
+      font-size: 24px;
+      letter-spacing: 8px;
+      color: var(--accent);
+      margin-bottom: 18px;
+      text-transform: uppercase;
+    }
+
+    .title-kicker::before { content: '[ '; color: var(--muted); }
+    .title-kicker::after  { content: ' ]'; color: var(--muted); }
+
+    .title {
+      margin: 0;
+      font-size: 68px;
+      font-weight: 700;
+      line-height: 1.3;
+      letter-spacing: 1px;
+      color: var(--fg);
+      overflow-wrap: anywhere;
+      word-break: break-word;
+      text-shadow: 0 0 30px rgba(77, 159, 255, 0.25);
+    }
+
+    .title-underline {
+      margin: 22px auto 0 auto;
+      width: 320px;
+      height: 3px;
+      background: linear-gradient(90deg, transparent, var(--accent) 30%, var(--accent2) 70%, transparent);
+      border-radius: 2px;
+      position: relative;
+    }
+
+    .title-underline::before,
+    .title-underline::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%) rotate(45deg);
+      width: 8px;
+      height: 8px;
+      background: var(--accent);
+    }
+
+    .title-underline::before { left: -24px; }
+    .title-underline::after  { right: -24px; background: var(--accent2); }
+
+    /* ============ Media (terminal window) ============ */
+    .media-window {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 940px;
+      align-self: center;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      overflow: hidden;
+      box-shadow:
+        0 30px 70px rgba(0, 0, 0, 0.6),
+        0 0 50px rgba(77, 159, 255, 0.08);
+    }
+
+    .window-titlebar {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 18px 26px;
+      background: rgba(125, 147, 173, 0.07);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .window-dots {
+      display: flex;
+      gap: 10px;
+    }
+
+    .window-dots span {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+    }
+
+    .window-dots span:nth-child(1) { background: #ff5f57; }
+    .window-dots span:nth-child(2) { background: #febc2e; }
+    .window-dots span:nth-child(3) { background: #28c840; }
+
+    .window-path {
+      font-family: var(--mono);
+      font-size: 20px;
+      color: var(--muted);
+      letter-spacing: 1px;
+      flex: 1;
+      text-align: center;
+    }
+
+    .window-status {
+      font-family: var(--mono);
+      font-size: 18px;
+      color: var(--accent2);
+      letter-spacing: 2px;
+    }
+
+    .media-viewport {
+      position: relative;
+      width: 100%;
+      height: 880px;
+    }
+
+    .media-viewport img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    /* HUD corner brackets over the image */
+    .hud-bracket {
+      position: absolute;
+      width: 44px;
+      height: 44px;
+      z-index: 2;
+    }
+
+    .hud-bracket.tl { top: 20px; left: 20px; border-top: 3px solid var(--accent); border-left: 3px solid var(--accent); }
+    .hud-bracket.tr { top: 20px; right: 20px; border-top: 3px solid var(--accent); border-right: 3px solid var(--accent); }
+    .hud-bracket.bl { bottom: 20px; left: 20px; border-bottom: 3px solid var(--accent2); border-left: 3px solid var(--accent2); }
+    .hud-bracket.br { bottom: 20px; right: 20px; border-bottom: 3px solid var(--accent2); border-right: 3px solid var(--accent2); }
+
+    /* Subtle scanline sheen on image */
+    .media-viewport::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(
+        180deg,
+        transparent 0px,
+        transparent 5px,
+        rgba(10, 14, 20, 0.05) 6px
+      );
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    /* Window bottom status strip */
+    .window-statusbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 26px;
+      background: rgba(125, 147, 173, 0.07);
+      border-top: 1px solid var(--border);
+      font-family: var(--mono);
+      font-size: 17px;
+      color: var(--muted);
+      letter-spacing: 2px;
+    }
+
+    .window-statusbar .progress {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .progress-track {
+      width: 200px;
+      height: 6px;
+      background: rgba(125, 147, 173, 0.2);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      width: 72%;
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      border-radius: 3px;
+    }
+
+    /* ============ Caption ============ */
+    .caption {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 940px;
+      align-self: center;
+      display: grid;
+      grid-template-columns: 56px 1fr;
+      gap: 0;
+      background: rgba(14, 20, 31, 0.65);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--accent);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .caption .gutter {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      background: rgba(125, 147, 173, 0.06);
+      border-right: 1px solid var(--border);
+      font-family: var(--mono);
+      font-size: 18px;
+      color: rgba(125, 147, 173, 0.55);
+    }
+
+    .caption p {
+      margin: 0;
+      padding: 30px 44px;
+      font-size: 42px;
+      line-height: 1.65;
+      color: var(--fg);
+      overflow-wrap: anywhere;
+      word-break: break-word;
+      height: 200px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+
+    .caption .cursor {
+      display: inline-block;
+      width: 4px;
+      height: 42px;
+      background: var(--accent2);
+      margin-left: 8px;
+      vertical-align: middle;
+      animation: blink 1.2s step-end infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .caption .cursor { animation: none; }
+    }
+
+    /* ============ Footer ============ */
+    .footer {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 940px;
+      align-self: center;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      padding-top: 26px;
+      border-top: 1px solid var(--border);
+    }
+
+    .footer::before {
+      content: '';
+      position: absolute;
+      top: -1px;
+      right: 0;
+      width: 180px;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--accent2));
+    }
+
+    .author {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .author-name {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 30px;
+      font-weight: 600;
+      color: var(--fg);
+    }
+
+    .author-chip {
+      font-family: var(--mono);
+      font-size: 17px;
+      letter-spacing: 2px;
+      color: var(--accent);
+      border: 1px solid var(--accent-dim);
+      border-radius: 6px;
+      padding: 4px 10px;
+    }
+
+    .author-desc {
+      font-size: 22px;
+      color: var(--muted);
+      line-height: 1.35;
+    }
+
+    .brand {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 10px;
+    }
+
+    .brand-name {
+      font-family: var(--mono);
+      font-size: 26px;
+      font-weight: 600;
+      letter-spacing: 3px;
+      color: var(--fg);
+    }
+
+    .brand-name::before {
+      content: '> ';
+      color: var(--accent2);
+    }
+
+    .brand-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--mono);
+      font-size: 16px;
+      letter-spacing: 2px;
+      color: var(--muted);
+    }
+
+    .brand-meta .pip {
+      width: 8px;
+      height: 8px;
+      border-radius: 2px;
+      background: var(--accent-dim);
+    }
+
+    .brand-meta .pip.on { background: var(--accent); }
+
+    * { text-rendering: optimizeLegibility; }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <!-- Background -->
+    <div class="bg-layer" aria-hidden="true">
+      <div class="bg-grid"></div>
+      <div class="bg-glow-1"></div>
+      <div class="bg-glow-2"></div>
+
+      <!-- Circuit traces -->
+      <svg width="1080" height="1920" style="position:absolute; inset:0;">
+        <path class="circuit" d="M 0 240 H 120 L 160 280 H 300" />
+        <circle class="circuit-node" cx="300" cy="280" r="5" />
+        <path class="circuit" d="M 1080 380 H 950 L 910 340 H 820" />
+        <circle class="circuit-node green" cx="820" cy="340" r="5" />
+        <path class="circuit" d="M 0 1560 H 90 L 130 1600 H 240" />
+        <circle class="circuit-node green" cx="240" cy="1600" r="5" />
+        <path class="circuit" d="M 1080 1480 H 980 L 940 1520 H 870" />
+        <circle class="circuit-node" cx="870" cy="1520" r="5" />
+        <path class="circuit" d="M 540 0 V 60 L 580 100 V 160" />
+        <circle class="circuit-node" cx="580" cy="160" r="5" />
+        <path class="circuit" d="M 480 1920 V 1870 L 440 1830 V 1790" />
+        <circle class="circuit-node green" cx="440" cy="1790" r="5" />
+      </svg>
+
+      <div class="data-column">01001000 · 01010100 · 01000101 · 01000011 · 01001000</div>
+      <div class="data-column-left">SYS.CORE // RENDER.PIPELINE // FRAME.SYNC // OK</div>
+    </div>
+
+    <!-- Header -->
+    <header class="header">
+      <div class="sys-bar">
+        <div class="left-group">
+          <span class="status-led"></span>
+          <span>SYSTEM ONLINE</span>
+        </div>
+        <div class="right-group">
+          <span>SIGNAL</span>
+          <div class="signal-bars"><span></span><span></span><span></span><span></span></div>
+        </div>
+      </div>
+
+      <div class="title-block">
+        <div class="title-kicker">TECH BRIEF</div>
+        <h1 class="title">{{title}}</h1>
+        <div class="title-underline"></div>
+      </div>
+    </header>
+
+    <!-- Media: terminal window -->
+    <section class="media-window" role="img" aria-label="Illustration for the video">
+      <div class="window-titlebar">
+        <div class="window-dots"><span></span><span></span><span></span></div>
+        <div class="window-path">~/visual/render — frame.png</div>
+        <div class="window-status">● LIVE</div>
+      </div>
+      <div class="media-viewport">
+        <div class="hud-bracket tl"></div>
+        <div class="hud-bracket tr"></div>
+        <div class="hud-bracket bl"></div>
+        <div class="hud-bracket br"></div>
+        <img src="{{image}}" alt="Image: {{title}}">
+      </div>
+      <div class="window-statusbar">
+        <span>RES 1024×1024</span>
+        <div class="progress">
+          <span>PROC</span>
+          <div class="progress-track"><div class="progress-fill"></div></div>
+        </div>
+        <span>GPU ▮▮▮▮▯</span>
+      </div>
+    </section>
+
+    <!-- Caption -->
+    <section class="caption" role="region" aria-label="Narration">
+      <div class="gutter">
+        <span>&gt;_</span>
+      </div>
+      <p>{{text}}<span class="cursor" aria-hidden="true"></span></p>
+    </section>
+
+    <!-- Footer -->
+    <!-- <footer class="footer" role="contentinfo">
+      <div class="author">
+        <div class="author-name">
+          <span class="author-chip">AUTHOR</span>
+          <span>{{author=@Pixelle.AI}}</span>
+        </div>
+        <div class="author-desc">{{describe=Open Source Omnimodal AI Creative Agent}}</div>
+      </div>
+      <div class="brand">
+        <div class="brand-name">{{brand=Pixelle-Video}}</div>
+        <div class="brand-meta">
+          <span class="pip on"></span>
+          <span class="pip on"></span>
+          <span class="pip on"></span>
+          <span class="pip"></span>
+          <span>v2.0 · AI ENGINE</span>
+        </div>
+      </div>
+    </footer> -->
+  </div>
+</body>
+</html>
