@@ -52,17 +52,20 @@ EDGE_TTS_VOICES: List[Dict[str, Any]] = [
         "locale": "zh-CN",
         "gender": "male"
     },
+    # Note: zh-CN-YunyeNeural / zh-CN-YunfengNeural are Azure-only voices and
+    # are NOT served by the free Edge TTS endpoint (requests fail with
+    # NoAudioReceived) - replaced with valid free-endpoint voices.
     {
-        "id": "zh-CN-YunyeNeural",
-        "label_key": "tts.voice.zh_CN_YunyeNeural",
+        "id": "zh-CN-YunxiaNeural",
+        "label_key": "tts.voice.zh_CN_YunxiaNeural",
         "locale": "zh-CN",
         "gender": "male"
     },
     {
-        "id": "zh-CN-YunfengNeural",
-        "label_key": "tts.voice.zh_CN_YunfengNeural",
+        "id": "zh-CN-shaanxi-XiaoniNeural",
+        "label_key": "tts.voice.zh_CN_shaanxi_XiaoniNeural",
         "locale": "zh-CN",
-        "gender": "male"
+        "gender": "female"
     },
     {
         "id": "zh-CN-liaoning-XiaobeiNeural",

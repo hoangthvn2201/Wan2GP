@@ -2,7 +2,6 @@ import os
 import time
 from pathlib import Path
 from typing import Any
-from moviepy.editor import VideoFileClip
 
 import streamlit as st
 from loguru import logger
@@ -110,6 +109,12 @@ class ActionTransferPipelineUI(PipelineUI):
             
             # Get the video length (rounded down).
             if video_asset_paths:
+                # Import the class directly (lazily) instead of via moviepy.editor:
+                # the editor module drags in the pygame-based preview, which
+                # crashes on Python 3.12 (pygame -> pkg_resources -> removed
+                # pkgutil.ImpImporter) and isn't needed headless anyway.
+                from moviepy.video.io.VideoFileClip import VideoFileClip
+
                 clip = VideoFileClip(video_asset_paths[0])
                 int_duration = int(clip.duration)
                 duration = min(int_duration, 30)
