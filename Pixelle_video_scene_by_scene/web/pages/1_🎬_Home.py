@@ -17,11 +17,14 @@ Home Page - Scene-by-Scene video generation wizard
 import sys
 from pathlib import Path
 
-# Add project roots to sys.path (this folder, ../Pixelle_video, Wan2GP root)
+# Add project roots to sys.path (this folder, ../Pixelle_video, Wan2GP root).
+# This folder must be FIRST so its `web` package shadows ../Pixelle_video's
+# (e.g. `python -m streamlit` prepends the cwd, which may be ../Pixelle_video).
 _script_dir = Path(__file__).resolve().parent
 _project_root = _script_dir.parent.parent
-if str(_project_root) not in sys.path:
-    sys.path.insert(0, str(_project_root))
+while str(_project_root) in sys.path:
+    sys.path.remove(str(_project_root))
+sys.path.insert(0, str(_project_root))
 _wan2gp_root = _project_root.parent
 for _p in (_wan2gp_root / "Pixelle_video", _wan2gp_root):
     if str(_p) not in sys.path:

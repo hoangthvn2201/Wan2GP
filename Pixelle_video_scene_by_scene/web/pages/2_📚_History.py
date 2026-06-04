@@ -19,11 +19,13 @@ from pathlib import Path
 from datetime import datetime
 import os
 
-# Add project root to sys.path
+# Add project root to sys.path.
+# This folder must be FIRST so its `web` package shadows ../Pixelle_video's.
 _script_dir = Path(__file__).resolve().parent
 _project_root = _script_dir.parent.parent
-if str(_project_root) not in sys.path:
-    sys.path.insert(0, str(_project_root))
+while str(_project_root) in sys.path:
+    sys.path.remove(str(_project_root))
+sys.path.insert(0, str(_project_root))
 
 import streamlit as st
 from loguru import logger

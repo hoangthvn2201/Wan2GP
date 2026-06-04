@@ -30,11 +30,15 @@ import os
 import sys
 from pathlib import Path
 
-# 1. This project folder (for `web` and `sbs` packages)
+# 1. This project folder (for `web` and `sbs` packages).
+#    MUST be at the very front of sys.path: `python -m streamlit` prepends the
+#    cwd (often ../Pixelle_video, which has its own `web` package), and
+#    PYTHONPATH entries come after it — so "insert if missing" is not enough.
 _script_dir = Path(__file__).resolve().parent
 _project_root = _script_dir.parent
-if str(_project_root) not in sys.path:
-    sys.path.insert(0, str(_project_root))
+while str(_project_root) in sys.path:
+    sys.path.remove(str(_project_root))
+sys.path.insert(0, str(_project_root))
 
 # 2/3. The Wan2GP repo root and the original Pixelle_video folder
 _wan2gp_root = _project_root.parent
