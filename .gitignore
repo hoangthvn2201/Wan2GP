@@ -20,7 +20,7 @@
 # *.txt
 *.backup
 *.pkl
-*.html
+# *.html
 *.pdf
 *.whl
 *.exe
