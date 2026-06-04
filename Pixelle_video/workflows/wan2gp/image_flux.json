@@ -1,0 +1,12 @@
+{
+  "source": "wan2gp",
+  "description": "Flux 1 Dev 12B text-to-image, loaded in-process via WanGP",
+  "model_type": "flux",
+  "media_type": "image",
+  "resolution_multiple": 16,
+  "max_pixels": 1572864,
+  "settings": {
+    "image_mode": 1,
+    "batch_size": 1
+  }
+}

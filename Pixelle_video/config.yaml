@@ -1,0 +1,33 @@
+project_name: Pixelle-Video
+llm:
+  api_key: token-abc123
+  base_url: https://towanda-phymatic-unstintingly.ngrok-free.dev/v1
+  model: qwen35-9b
+  enable_thinking: false
+comfyui:
+  comfyui_url: http://oizuk-34-125-3-143.run.pinggy-free.link
+  comfyui_api_key: null
+  runninghub_api_key: null
+  runninghub_concurrent_limit: 1
+  runninghub_instance_type: null
+  tts:
+    inference_mode: local
+    local:
+      voice: zh-CN-YunjianNeural
+      speed: 1.2
+    comfyui:
+      default_workflow: null
+  image:
+    default_workflow: wan2gp/image_qwen.json
+    prompt_prefix: Minimalist black-and-white matchstick figure style illustration,
+      clean lines, simple sketch style
+  video:
+    default_workflow: wan2gp/video_wan2.1_fusionx.json
+    prompt_prefix: Minimalist black-and-white matchstick figure style illustration,
+      clean lines, simple sketch style
+wan2gp:
+  root: null
+  cli_args: []
+  output_dir: null
+template:
+  default_template: 1080x1920/default.html

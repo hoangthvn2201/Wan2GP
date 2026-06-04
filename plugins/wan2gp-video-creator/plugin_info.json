@@ -1,0 +1,8 @@
+{
+    "name": "Video Creator",
+    "author": "huyhoangt2201",
+    "version": "1.0.0",
+    "description": "End-to-end guided pipeline: LLM script -> start images -> LTX-2 video -> narration TTS -> stitched master.",
+    "date": "",
+    "wan2gp_version": ""
+}

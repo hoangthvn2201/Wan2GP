@@ -1,0 +1,12 @@
+{
+  "source": "wan2gp",
+  "description": "Qwen Image 20B text-to-image, loaded in-process via WanGP",
+  "model_type": "qwen_image_20B",
+  "media_type": "image",
+  "resolution_multiple": 16,
+  "max_pixels": 1572864,
+  "settings": {
+    "image_mode": 1,
+    "batch_size": 1
+  }
+}
