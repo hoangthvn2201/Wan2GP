@@ -58,6 +58,52 @@ from pdfv.prompts import (
 class PdfVideoEngine(SceneBySceneEngine):
     """PDF → video orchestration on top of the scene-by-scene engine."""
 
+    # ==================== LLM helper ====================
+
+    async def _llm_json(
+        self,
+        prompt: str,
+        *,
+        temperature: float,
+        base_max_tokens: int,
+        max_retries: int = 3,
+        label: str = "LLM call",
+        validate: Optional[Callable[[dict], None]] = None,
+    ) -> dict:
+        """
+        LLM call that returns parsed JSON, retrying with an ESCALATING token
+        budget (base, 2x, 3x, ...).
+
+        Reasoning models (MiniMax-M3, Qwen3, DeepSeek-R1, ...) spend hidden
+        chain-of-thought tokens against max_tokens and can emit no final
+        answer at all on complex prompts. The core llm_service retries once
+        but caps that rescue at 8192 tokens — not enough for long reasoning
+        chains — and retrying at the SAME budget just fails the same way, so
+        each attempt here raises the ceiling instead. (At >= 8192 the core's
+        capped internal retry short-circuits, so every attempt is exactly one
+        request.)
+
+        Args:
+            validate: Optional callback that raises ValueError on a parsed
+                response that is well-formed JSON but semantically wrong
+                (e.g. wrong narration count) — triggering the same retry path.
+        """
+        last_error: Optional[Exception] = None
+        for attempt in range(1, max_retries + 1):
+            budget = base_max_tokens * attempt
+            try:
+                response = await self.core.llm(prompt, temperature=temperature, max_tokens=budget)
+                result = _parse_json(response)
+                if validate is not None:
+                    validate(result)
+                return result
+            except Exception as e:
+                last_error = e
+                logger.warning(
+                    f"{label} attempt {attempt}/{max_retries} (max_tokens={budget}) failed: {e}"
+                )
+        raise ValueError(f"{label} failed after {max_retries} attempts: {last_error}")
+
     # ==================== Step 1: Ingest ====================
 
     def ingest_pdf(
@@ -134,12 +180,16 @@ class PdfVideoEngine(SceneBySceneEngine):
                     chunk_index=i + 1,
                     chunk_total=len(chunks),
                 )
-                response = await self.core.llm(prompt, temperature=0.3, max_tokens=4096)
                 try:
-                    summary = _parse_json(response)
-                except json.JSONDecodeError:
-                    logger.warning(f"Chunk {chunk.page_label}: notes were not valid JSON, keeping raw text")
-                    summary = {"key_points": [response.strip()[:2000]]}
+                    summary = await self._llm_json(
+                        prompt, temperature=0.3, base_max_tokens=4096,
+                        max_retries=2, label=f"Chunk notes {chunk.page_label}",
+                    )
+                except ValueError:
+                    # Notes for this chunk are unrecoverable — hand the raw
+                    # excerpt to the reduce step so its content isn't lost
+                    logger.warning(f"Chunk {chunk.page_label}: falling back to the raw excerpt")
+                    summary = {"excerpt": chunk.text[:4000]}
                 notes.append({"pages": chunk.page_label, **summary})
                 logger.info(f"🧩 Notes ready for {chunk.page_label} ({i + 1}/{len(chunks)})")
 
@@ -152,8 +202,10 @@ class PdfVideoEngine(SceneBySceneEngine):
             notes_json=json.dumps(notes, ensure_ascii=False, indent=2),
             focus=focus,
         )
-        response = await self.core.llm(digest_prompt, temperature=0.4, max_tokens=4096)
-        digest = DocumentDigest.from_llm_dict(_parse_json(response))
+        result = await self._llm_json(
+            digest_prompt, temperature=0.4, base_max_tokens=4096, label="Document digest",
+        )
+        digest = DocumentDigest.from_llm_dict(result)
 
         if not digest.title:
             digest.title = doc.title_guess
@@ -207,31 +259,32 @@ class PdfVideoEngine(SceneBySceneEngine):
             focus=focus,
         )
 
-        last_error: Optional[Exception] = None
-        for attempt in range(1, max_retries + 1):
-            try:
-                response = await self.core.llm(prompt, temperature=0.8, max_tokens=4096)
-                result = _parse_json(response)
-                narrations = result.get("narrations") or []
-                if len(narrations) > n_scenes:
-                    logger.warning(f"Got {len(narrations)} narrations, taking first {n_scenes}")
-                    narrations = narrations[:n_scenes]
-                elif len(narrations) < n_scenes:
-                    raise ValueError(f"Expected {n_scenes} narrations, got {len(narrations)}")
+        def _check(result: dict):
+            narrations = result.get("narrations") or []
+            if len(narrations) < n_scenes:
+                raise ValueError(f"Expected {n_scenes} narrations, got {len(narrations)}")
 
-                title = str(result.get("title") or digest.title).strip().strip('"').strip("'")
-                if len(title) > title_max_chars:
-                    truncated = title[:title_max_chars]
-                    last_space = truncated.rfind(" ")
-                    title = (truncated[:last_space] if last_space > title_max_chars * 0.6
-                             else truncated).rstrip(".,!?;:'\"")
+        # Reasoning models deliberate a LOT over this prompt's constraints —
+        # start with a generous budget and let _llm_json escalate from there.
+        result = await self._llm_json(
+            prompt, temperature=0.8, base_max_tokens=8192,
+            max_retries=max_retries, label="PDF script", validate=_check,
+        )
 
-                logger.info(f"📝 PDF script ready: title='{title}', {len(narrations)} scene(s)")
-                return title, [str(n).strip() for n in narrations]
-            except (json.JSONDecodeError, ValueError, KeyError) as e:
-                last_error = e
-                logger.warning(f"Script attempt {attempt}/{max_retries} failed: {e}")
-        raise ValueError(f"Failed to generate the script after {max_retries} attempts: {last_error}")
+        narrations = result["narrations"]
+        if len(narrations) > n_scenes:
+            logger.warning(f"Got {len(narrations)} narrations, taking first {n_scenes}")
+            narrations = narrations[:n_scenes]
+
+        title = str(result.get("title") or digest.title).strip().strip('"').strip("'")
+        if len(title) > title_max_chars:
+            truncated = title[:title_max_chars]
+            last_space = truncated.rfind(" ")
+            title = (truncated[:last_space] if last_space > title_max_chars * 0.6
+                     else truncated).rstrip(".,!?;:'\"")
+
+        logger.info(f"📝 PDF script ready: title='{title}', {len(narrations)} scene(s)")
+        return title, [str(n).strip() for n in narrations]
 
     # ==================== Step 4: Visual prompts ====================
 
@@ -259,24 +312,23 @@ class PdfVideoEngine(SceneBySceneEngine):
             max_words=max_words,
         )
 
-        last_error: Optional[Exception] = None
-        for attempt in range(1, max_retries + 1):
-            try:
-                response = await self.core.llm(prompt, temperature=0.7, max_tokens=8192)
-                result = _parse_json(response)
-                visual_prompts = result.get("image_prompts") or []
-                if len(visual_prompts) != len(narrations):
-                    raise ValueError(
-                        f"Prompt count mismatch: expected {len(narrations)}, got {len(visual_prompts)}"
-                    )
-                if progress_callback:
-                    progress_callback(len(visual_prompts), len(narrations), "Visual prompts ready")
-                logger.info(f"🎨 Generated {len(visual_prompts)} visual prompt(s) in a shared visual world")
-                return [build_image_prompt(str(p), prompt_prefix or "") for p in visual_prompts]
-            except (json.JSONDecodeError, ValueError, KeyError) as e:
-                last_error = e
-                logger.warning(f"Visual prompt attempt {attempt}/{max_retries} failed: {e}")
-        raise ValueError(f"Failed to generate visual prompts after {max_retries} attempts: {last_error}")
+        def _check(result: dict):
+            visual_prompts = result.get("image_prompts") or []
+            if len(visual_prompts) != len(narrations):
+                raise ValueError(
+                    f"Prompt count mismatch: expected {len(narrations)}, got {len(visual_prompts)}"
+                )
+
+        result = await self._llm_json(
+            prompt, temperature=0.7, base_max_tokens=8192,
+            max_retries=max_retries, label="Visual prompts", validate=_check,
+        )
+
+        visual_prompts = result["image_prompts"]
+        if progress_callback:
+            progress_callback(len(visual_prompts), len(narrations), "Visual prompts ready")
+        logger.info(f"🎨 Generated {len(visual_prompts)} visual prompt(s) in a shared visual world")
+        return [build_image_prompt(str(p), prompt_prefix or "") for p in visual_prompts]
 
     async def generate_visual_prompt_for(
         self,

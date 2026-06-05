@@ -121,6 +121,12 @@ Uploaded PDFs are kept under `Pixelle_video/output/uploads/`.
 
 - **Scanned PDFs** (images, no text layer) extract almost nothing — run OCR
   first (`ocrmypdf input.pdf output.pdf`), then ingest the result.
+- **Reasoning LLMs** (MiniMax-M3, DeepSeek-R1, Qwen3, ...) burn hidden
+  chain-of-thought tokens against `max_tokens` and can return *no* answer on
+  the constraint-heavy script prompt. All pdfv LLM stages retry with an
+  escalating budget (script: 8k → 16k → 24k tokens), which recovers this
+  automatically — but a non-reasoning model (e.g. `deepseek-chat`) makes the
+  pipeline far faster.
 - Narration edits via `engine.rewrite_narration(...)` and per-scene
   regeneration work exactly as in the scene-by-scene app.
 - Tasks are persisted with `pipeline: "pdf_to_video"`, so they are easy to
