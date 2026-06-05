@@ -16,7 +16,7 @@ comfyui:
       voice: zh-CN-YunjianNeural
       speed: 1.2
     vieneu:
-      voice: Binh
+      voice: Xuân Vĩnh (Nam - Miền Nam)
       speed: 1.0
       ref_audio: null
       mode: turbo

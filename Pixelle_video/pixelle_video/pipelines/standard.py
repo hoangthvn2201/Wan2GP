@@ -244,9 +244,10 @@ class StandardPipeline(LinearVideoPipeline):
                 final_tts_workflow = None
                 logger.debug(f"TTS Mode: local (voice={final_voice_id})")
             elif tts_inference_mode == "vieneu":
-                final_voice_id = tts_voice or "Binh"
+                # None falls back to config vieneu.voice, then to the model default
+                final_voice_id = tts_voice
                 final_tts_workflow = None
-                logger.debug(f"TTS Mode: vieneu (voice={final_voice_id})")
+                logger.debug(f"TTS Mode: vieneu (voice={final_voice_id or 'default'})")
             elif tts_inference_mode == "comfyui":
                 final_voice_id = None
                 logger.debug(f"TTS Mode: comfyui (workflow={final_tts_workflow})")

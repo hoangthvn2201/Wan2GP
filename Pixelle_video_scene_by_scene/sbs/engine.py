@@ -253,7 +253,8 @@ class SceneBySceneEngine:
             voice_id = params.get("tts_voice") or "zh-CN-YunjianNeural"
             tts_workflow = None
         elif tts_inference_mode == "vieneu":
-            voice_id = params.get("tts_voice") or "Binh"
+            # None falls back to config vieneu.voice, then to the model default
+            voice_id = params.get("tts_voice")
             tts_workflow = None
         else:  # comfyui
             voice_id = None

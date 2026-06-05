@@ -136,7 +136,7 @@ def render_style_config(pixelle_video):
 
             # Get saved settings from config
             vieneu_config = tts_config.get("vieneu", {})
-            saved_voice = vieneu_config.get("voice", "Binh")
+            saved_voice = vieneu_config.get("voice", "Xuân Vĩnh (Nam - Miền Nam)")
             saved_speed = vieneu_config.get("speed", 1.0)
 
             # Build voice options

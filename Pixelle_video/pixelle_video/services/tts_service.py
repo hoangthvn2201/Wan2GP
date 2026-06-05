@@ -109,7 +109,7 @@ class TTSService(ComfyBaseService):
             audio_path = await pixelle_video.tts(
                 text="Xin chào thế giới!",
                 inference_mode="vieneu",
-                voice="Binh"
+                voice="Xuân Vĩnh (Nam - Miền Nam)"
             )
 
             # ComfyUI inference
@@ -223,7 +223,7 @@ class TTSService(ComfyBaseService):
 
         Args:
             text: Text to convert to speech
-            voice: VieNeu preset voice ID (e.g. "Binh", "Ly"; default: from config)
+            voice: VieNeu preset voice ID (fuzzy-matched; default: from config, None = model default)
             speed: Speech speed multiplier (default: from config)
             ref_audio: Optional reference audio for zero-shot voice cloning
             output_path: Custom output path (auto-generated if None)
@@ -234,8 +234,8 @@ class TTSService(ComfyBaseService):
         # Get config defaults
         vieneu_config = self.config.get("vieneu", {})
 
-        # Determine parameters (param > config)
-        final_voice = voice or vieneu_config.get("voice", "Binh")
+        # Determine parameters (param > config; None = model default voice)
+        final_voice = voice or vieneu_config.get("voice") or None
         final_speed = speed if speed is not None else vieneu_config.get("speed", 1.0)
         final_ref_audio = ref_audio or vieneu_config.get("ref_audio")
         mode = vieneu_config.get("mode", "turbo")

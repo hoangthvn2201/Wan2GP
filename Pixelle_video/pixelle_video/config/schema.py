@@ -43,7 +43,14 @@ class TTSLocalConfig(BaseModel):
 
 class TTSVieNeuConfig(BaseModel):
     """VieNeu TTS configuration (local Vietnamese TTS, on-device)"""
-    voice: str = Field(default="Binh", description="VieNeu preset voice ID (Binh/Tuyen/Ly/Ngoc/Vinh/Doan)")
+    voice: str = Field(
+        default="Xuân Vĩnh (Nam - Miền Nam)",
+        description=(
+            "VieNeu preset voice ID (turbo model: 'Xuân Vĩnh (Nam - Miền Nam)', "
+            "'Phạm Tuyên (Nam - Miền Bắc)', 'Bích Ngọc (Nữ - Miền Bắc)', "
+            "'Thục Đoan (Nữ - Miền Nam)'; fuzzy-matched, e.g. 'Tuyen' works)"
+        ),
+    )
     speed: float = Field(default=1.0, ge=0.5, le=2.0, description="Speech speed multiplier (0.5-2.0)")
     ref_audio: Optional[str] = Field(default=None, description="Reference audio path for zero-shot voice cloning (overrides voice)")
     mode: str = Field(default="turbo", description="VieNeu backend: 'turbo' (CPU-friendly GGUF/ONNX) or 'standard'/'fast' (GPU)")

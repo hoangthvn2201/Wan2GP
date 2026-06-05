@@ -35,19 +35,21 @@ from typing import Any, Dict, List, Optional
 from loguru import logger
 
 
-# Preset voices bundled with the vieneu package (mirrors vieneu/assets/voices.json).
+# Preset voices of the turbo model (mirrors voices.json in the HuggingFace
+# repo pnnbao-ump/VieNeu-TTS-v2-Turbo-GGUF, which the engine downloads and
+# which OVERRIDES the voices bundled inside the vieneu package — the voice
+# IDs there are the full display names, diacritics included).
 # Kept as a static list so the web UI can render the voice selector without
 # loading the model (engine init downloads weights and is expensive).
 VIENEU_VOICES: List[Dict[str, Any]] = [
-    {"id": "Binh", "label": "Bình (nam miền Bắc)", "locale": "vi-VN", "gender": "male"},
-    {"id": "Tuyen", "label": "Tuyên (nam miền Bắc)", "locale": "vi-VN", "gender": "male"},
-    {"id": "Ly", "label": "Ly (nữ miền Bắc)", "locale": "vi-VN", "gender": "female"},
-    {"id": "Ngoc", "label": "Ngọc (nữ miền Bắc)", "locale": "vi-VN", "gender": "female"},
-    {"id": "Vinh", "label": "Vĩnh (nam miền Nam)", "locale": "vi-VN", "gender": "male"},
-    {"id": "Doan", "label": "Đoan (nữ miền Nam)", "locale": "vi-VN", "gender": "female"},
+    {"id": "Xuân Vĩnh (Nam - Miền Nam)", "label": "Xuân Vĩnh (Nam - Miền Nam)", "locale": "vi-VN", "gender": "male"},
+    {"id": "Phạm Tuyên (Nam - Miền Bắc)", "label": "Phạm Tuyên (Nam - Miền Bắc)", "locale": "vi-VN", "gender": "male"},
+    {"id": "Bích Ngọc (Nữ - Miền Bắc)", "label": "Bích Ngọc (Nữ - Miền Bắc)", "locale": "vi-VN", "gender": "female"},
+    {"id": "Thục Đoan (Nữ - Miền Nam)", "label": "Thục Đoan (Nữ - Miền Nam)", "locale": "vi-VN", "gender": "female"},
 ]
 
-DEFAULT_VIENEU_VOICE = "Binh"
+# Default voice of the turbo model (its voices.json "default_voice")
+DEFAULT_VIENEU_VOICE = "Xuân Vĩnh (Nam - Miền Nam)"
 
 # Singleton engine (model stays loaded between calls) + lock:
 # llama-cpp inference is not thread-safe, serialize synthesis.
@@ -124,8 +126,24 @@ def _get_engine(mode: str = "turbo", device: str = "cpu"):
     return _engine
 
 
+def _normalize_voice_name(name: str) -> str:
+    """Diacritic/case-insensitive form for fuzzy voice matching"""
+    import unicodedata
+    decomposed = unicodedata.normalize("NFD", name)
+    stripped = "".join(ch for ch in decomposed if not unicodedata.combining(ch))
+    return stripped.replace("đ", "d").replace("Đ", "D").casefold().strip()
+
+
 def _resolve_voice(engine, voice: Optional[str], ref_audio: Optional[str]):
-    """Resolve voice parameter: cloned reference audio > preset voice > default"""
+    """
+    Resolve voice parameter: cloned reference audio > preset voice > default.
+
+    Preset lookup is forgiving: the model's voices.json (downloaded from
+    HuggingFace) may use different IDs across model versions, so an exact
+    miss falls back to a diacritic-insensitive substring match, and an
+    unknown voice falls back to the engine's default voice with a warning
+    instead of failing the whole pipeline.
+    """
     if ref_audio:
         ref_path = Path(ref_audio)
         if not ref_path.exists():
@@ -137,9 +155,33 @@ def _resolve_voice(engine, voice: Optional[str], ref_audio: Optional[str]):
         return _ref_audio_cache[cache_key]
 
     if voice:
-        return engine.get_preset_voice(voice)
+        available = [voice_id for _desc, voice_id in engine.list_preset_voices()]
 
-    return engine.get_preset_voice(DEFAULT_VIENEU_VOICE)
+        # 1. Exact ID match
+        if voice in available:
+            return engine.get_preset_voice(voice)
+
+        # 2. Fuzzy match: diacritic/case-insensitive equality, then substring
+        wanted = _normalize_voice_name(voice)
+        matches = [v for v in available if _normalize_voice_name(v) == wanted]
+        if not matches:
+            matches = [
+                v for v in available
+                if wanted in _normalize_voice_name(v) or _normalize_voice_name(v) in wanted
+            ]
+        if len(matches) == 1:
+            logger.info(f"🔁 VieNeu voice '{voice}' resolved to preset '{matches[0]}'")
+            return engine.get_preset_voice(matches[0])
+
+        # 3. Unknown/ambiguous -> engine default, keep the pipeline alive
+        logger.warning(
+            f"⚠️  VieNeu voice '{voice}' not found"
+            + (f" (ambiguous: {matches})" if matches else "")
+            + f"; falling back to the model's default voice. Available: {available}"
+        )
+
+    # No voice given (or fallback): the engine's own default voice
+    return engine.get_preset_voice()
 
 
 def _apply_speed(audio, speed: float):
@@ -217,7 +259,8 @@ async def vieneu_tts(
 
     Args:
         text: Text to synthesize (Vietnamese, English also supported)
-        voice: Preset voice ID (e.g. "Binh", "Ly", see VIENEU_VOICES)
+        voice: Preset voice ID (e.g. "Xuân Vĩnh (Nam - Miền Nam)", see
+               VIENEU_VOICES; fuzzy-matched, None = model default)
         speed: Speech speed multiplier (1.0 = normal), applied as a
                pitch-preserving time stretch
         ref_audio: Optional reference audio (3-5s wav/mp3) for zero-shot
@@ -233,7 +276,7 @@ async def vieneu_tts(
     Example:
         audio_path = await vieneu_tts(
             text="Xin chào, đây là giọng đọc tiếng Việt.",
-            voice="Ly",
+            voice="Bích Ngọc (Nữ - Miền Bắc)",
             output_path="output/hello.mp3"
         )
     """
