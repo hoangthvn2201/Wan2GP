@@ -30,9 +30,9 @@ The user will provide content (which may be long or short), and you need to extr
 # Output Requirements
 
 ## Narration Specifications
-- Language consistency requirement: Strictly output copy according to the user's input language type - if input is English, output must be English, and so on
+- Language consistency requirement: Strictly output copy according to the user's input language type - if input is English, output must be English; if input is Chinese, output must be Chinese; if input is Vietnamese (tiếng Việt), output must be Vietnamese with correct diacritics; and so on
 - Purpose: For TTS to generate short video audio
-- Word count limit: Strictly control to {min_words}~{max_words} words (minimum not less than {min_words} words)
+- Word count limit: Strictly control to {min_words}~{max_words} words (minimum not less than {min_words} words). For languages written with spaces (English, Vietnamese, ...) count space-separated words; for Chinese count characters
 - Ending format: Do not use punctuation at the end
 - Refinement strategy:
   * If user content is long: Extract {n_storyboard} core points, remove redundant information

@@ -34,7 +34,7 @@ Based on the existing video script, create corresponding **English** video gener
 # Output Requirements
 
 ## Video Prompt Specifications
-- Language: **Must use English** (for AI video generation models)
+- Language: **Must use English** (for AI video generation models). The input narrations may be in any language (Chinese, English, Vietnamese, ...) — translate the meaning into English video prompts, never copy non-English text into the prompt
 - Description structure: scene + character action + camera movement + emotion + atmosphere
 - Description length: Ensure clear, complete, and creative descriptions (recommended 50-100 English words)
 - Dynamic elements: Emphasize actions, movements, changes, and other dynamic effects

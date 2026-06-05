@@ -27,7 +27,7 @@ ASSET_SCRIPT_GENERATION_PROMPT = """You are a professional video script creator.
 {assets_text}
 
 ## Creation Guidelines
-1. Strictly output copy according to the user's input language type - if input is English, output must be English, and so on
+1. Strictly output copy according to the user's input language type - if input is English, output must be English; if input is Vietnamese, output must be Vietnamese; and so on
 2. Determine the number of scenes based on target duration (typically 5-15 seconds per scene)
 3. Assign one asset from available assets to each scene
 4. Each scene can contain 1-3 narration sentences
@@ -39,6 +39,7 @@ ASSET_SCRIPT_GENERATION_PROMPT = """You are a professional video script creator.
 - Narration language must match the user's input video intent
 - If video intent is in Chinese, narration must be in Chinese
 - If video intent is in English, narration must be in English
+- If video intent is in Vietnamese, narration must be in Vietnamese (natural tiếng Việt with correct diacritics)
 - Unless the video intent explicitly specifies an output language, strictly follow the original language of the intent
 
 ## Output Requirements

@@ -254,10 +254,14 @@ def render_style_config(pixelle_video):
         # TTS Preview (works for both modes)
         # ================================================================
         with st.expander(tr("tts.preview_title"), expanded=False):
-            # Preview text input
+            # Preview text input (Vietnamese sample for VieNeu mode)
+            default_preview_text = (
+                "Xin chào, đây là đoạn âm thanh thử nghiệm."
+                if tts_mode == "vieneu" else "大家好，这是一段测试语音。"
+            )
             preview_text = st.text_input(
                 tr("tts.preview_text"),
-                value="大家好，这是一段测试语音。",
+                value=default_preview_text,
                 placeholder=tr("tts.preview_text_placeholder"),
                 key="tts_preview_text"
             )
