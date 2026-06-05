@@ -1,0 +1,15 @@
+{
+  "source": "wan2gp",
+  "description": "Wan 2.1 Image2Video 480p FusioniX 14B (8 steps), loaded in-process via WanGP",
+  "model_type": "i2v_fusionix",
+  "media_type": "video",
+  "fps": 16,
+  "frame_quant": 4,
+  "resolution_multiple": 16,
+  "max_pixels": 399360,
+  "max_frames": 129,
+  "settings": {
+    "num_inference_steps": 8,
+    "guidance_scale": 1
+  }
+}
