@@ -24,6 +24,7 @@ from loguru import logger
 
 from Pixelle_video.pixelle_video.services.comfy_base_service import ComfyBaseService
 from Pixelle_video.pixelle_video.utils.tts_util import edge_tts
+from Pixelle_video.pixelle_video.utils.vieneu_tts_util import vieneu_tts
 from Pixelle_video.pixelle_video.tts_voices import speed_to_rate
 
 
@@ -86,9 +87,9 @@ class TTSService(ComfyBaseService):
             workflow: Workflow filename (for ComfyUI mode, default: from config)
             comfyui_url: ComfyUI URL (optional, overrides config)
             runninghub_api_key: RunningHub API key (optional, overrides config)
-            voice: Voice ID (for local mode: Edge TTS voice ID; for ComfyUI: workflow-specific)
+            voice: Voice ID (local mode: Edge TTS voice ID; vieneu mode: VieNeu preset ID; ComfyUI: workflow-specific)
             speed: Speech speed multiplier (1.0 = normal, >1.0 = faster, <1.0 = slower)
-            inference_mode: Override inference mode ("local" or "comfyui", default: from config)
+            inference_mode: Override inference mode ("local", "vieneu" or "comfyui", default: from config)
             output_path: Custom output path (auto-generated if None)
             **params: Additional workflow parameters
         
@@ -103,7 +104,14 @@ class TTSService(ComfyBaseService):
                 voice="zh-CN-YunjianNeural",
                 speed=1.2
             )
-            
+
+            # Local Vietnamese inference (VieNeu-TTS, on-device)
+            audio_path = await pixelle_video.tts(
+                text="Xin chào thế giới!",
+                inference_mode="vieneu",
+                voice="Xuân Vĩnh (Nam - Miền Nam)"
+            )
+
             # ComfyUI inference
             audio_path = await pixelle_video.tts(
                 text="你好，世界！",
@@ -120,6 +128,14 @@ class TTSService(ComfyBaseService):
                 text=text,
                 voice=voice,
                 speed=speed,
+                output_path=output_path
+            )
+        elif mode == "vieneu":
+            return await self._call_vieneu_tts(
+                text=text,
+                voice=voice,
+                speed=speed,
+                ref_audio=params.pop("ref_audio", None),
                 output_path=output_path
             )
         else:  # comfyui
@@ -193,7 +209,66 @@ class TTSService(ComfyBaseService):
         except Exception as e:
             logger.error(f"Local TTS generation error: {e}")
             raise
-    
+
+    async def _call_vieneu_tts(
+        self,
+        text: str,
+        voice: Optional[str] = None,
+        speed: Optional[float] = None,
+        ref_audio: Optional[str] = None,
+        output_path: Optional[str] = None,
+    ) -> str:
+        """
+        Generate speech using local VieNeu-TTS (Vietnamese, on-device)
+
+        Args:
+            text: Text to convert to speech
+            voice: VieNeu preset voice ID (fuzzy-matched; default: from config, None = model default)
+            speed: Speech speed multiplier (default: from config)
+            ref_audio: Optional reference audio for zero-shot voice cloning
+            output_path: Custom output path (auto-generated if None)
+
+        Returns:
+            Generated audio file path
+        """
+        # Get config defaults
+        vieneu_config = self.config.get("vieneu", {})
+
+        # Determine parameters (param > config; None = model default voice)
+        final_voice = voice or vieneu_config.get("voice") or None
+        final_speed = speed if speed is not None else vieneu_config.get("speed", 1.0)
+        final_ref_audio = ref_audio or vieneu_config.get("ref_audio")
+        mode = vieneu_config.get("mode", "turbo")
+        device = vieneu_config.get("device", "cpu")
+
+        logger.info(f"🎙️  Using VieNeu TTS: voice={final_voice}, speed={final_speed}x, "
+                    f"mode={mode}, device={device}"
+                    + (f", ref_audio={final_ref_audio}" if final_ref_audio else ""))
+
+        # Generate output path if not provided
+        if not output_path:
+            unique_id = uuid.uuid4().hex
+            output_path = f"output/{unique_id}.wav"
+            Path("output").mkdir(parents=True, exist_ok=True)
+
+        try:
+            await vieneu_tts(
+                text=text,
+                voice=final_voice,
+                speed=final_speed,
+                ref_audio=final_ref_audio,
+                output_path=output_path,
+                mode=mode,
+                device=device,
+            )
+
+            logger.info(f"✅ Generated audio (VieNeu TTS): {output_path}")
+            return output_path
+
+        except Exception as e:
+            logger.error(f"VieNeu TTS generation error: {e}")
+            raise
+
     async def _call_comfyui_workflow(
         self,
         workflow_info: dict,

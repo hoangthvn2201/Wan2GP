@@ -1,0 +1,12 @@
+{
+  "source": "wan2gp",
+  "description": "Wan 2.1 Fun InP Image2Video 1.3B - low VRAM (fits free Colab T4), loaded in-process via WanGP",
+  "model_type": "fun_inp_1.3B",
+  "media_type": "video",
+  "fps": 16,
+  "frame_quant": 4,
+  "resolution_multiple": 16,
+  "max_pixels": 399360,
+  "max_frames": 81,
+  "settings": {}
+}

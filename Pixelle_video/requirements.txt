@@ -21,6 +21,14 @@ openai>=2.6.0
 # Local TTS (default, runs on CPU)
 edge-tts==7.2.7
 
+# Vietnamese TTS (VieNeu-TTS) is OPT-IN and intentionally NOT listed here:
+# its runtime (llama-cpp-python, sea-g2p) builds from source on Linux, which
+# would slow down / break the standard one-shot install used by the Colab
+# notebooks. To enable the "vieneu" TTS mode, additionally run:
+#   pip install -r Pixelle_video/requirements-vieneu.txt
+#   pip install vieneu==2.7.0 --no-deps
+# (see requirements-vieneu.txt for details on the --no-deps reasoning)
+
 # ComfyUI / RunningHub backends (optional fallback, kept for selfhost/runninghub workflows)
 comfykit>=0.1.12
 

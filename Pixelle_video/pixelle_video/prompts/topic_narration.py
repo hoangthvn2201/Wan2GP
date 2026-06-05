@@ -23,7 +23,7 @@ Globally, you must strictly output copy in the corresponding language type accor
 
 # Core Task
 The user will input a topic or theme. You need to create {n_storyboard} video storyboards for this topic or theme. Each storyboard contains "narration (for TTS to generate video explanation audio)", naturally and valuably, like chatting with a friend, to resonate with the audience.
-- Language consistency requirement: Strictly output copy according to the user's input language type - if input is English, output must be English, and so on
+- Language consistency requirement: Strictly output copy according to the user's input language type - if input is English, output must be English; if input is Chinese, output must be Chinese; if input is Vietnamese (tiếng Việt), output must be Vietnamese; and so on
 
 # Input Topic
 {topic}
@@ -31,10 +31,10 @@ The user will input a topic or theme. You need to create {n_storyboard} video st
 # Output Requirements
 
 ## Narration Specifications
-- Output language requirement: Strictly output according to the language of the user's input topic or theme. For example: if the user's input is in English, the output copy must be in English, same for Chinese.
+- Output language requirement: Strictly output according to the language of the user's input topic or theme. For example: if the user's input is in English, the output copy must be in English; same for Chinese, Vietnamese, or any other language.
 - Purpose: For TTS to generate short video audio, explaining topics in an accessible way
-- Word count limit: Strictly control to {min_words}~{max_words} words (minimum not less than {min_words} words)
-- Ending format: Do not use punctuation at the end of each narration. If there are sentence breaks in the narration, Chinese punctuation (,。?!……:"") must be used to express tone and pauses. Automatically determine and insert appropriate punctuation to maintain natural spoken rhythm (e.g., "Right? Wrong." should have pauses and tonal shifts)
+- Word count limit: Strictly control to {min_words}~{max_words} words (minimum not less than {min_words} words). For languages written with spaces (English, Vietnamese, ...) count space-separated words; for Chinese count characters
+- Ending format: Do not use punctuation at the end of each narration. If there are sentence breaks in the narration, use punctuation appropriate to the output language (Chinese: ,。?!……:""; English/Vietnamese: , . ? ! ...) to express tone and pauses. Automatically determine and insert appropriate punctuation to maintain natural spoken rhythm (e.g., "Right? Wrong." should have pauses and tonal shifts)
 - Content requirement: Expand around the topic, each storyboard conveys a valuable viewpoint or insight
 - Style requirement: Like chatting with a friend, accessible, sincere, inspiring, avoid academic and stiff expressions, reject formulaic and template expressions
 - Emotion and tone: Gentle, sincere, enthusiastic, like a friend with insights sharing thoughts
@@ -44,6 +44,7 @@ The user will input a topic or theme. You need to create {n_storyboard} video st
   For Chinese studies/Buddhism/Taoism topics, can cite original texts or interpretations from Tao Te Ching, Diamond Sutra, Yellow Emperor's Inner Canon, etc.;
   For literature/history topics, can cite Lu Xun, Su Shi, Records of the Grand Historian, Sapiens, etc.;
   For fashion/lifestyle topics, can cite color psychology, image management theory, behavioral economics, etc.
+  For Vietnamese-language content, prefer sources familiar to Vietnamese audiences when natural: Vietnamese proverbs and folk sayings (tục ngữ, ca dao), classic literature (Truyện Kiều, Nguyễn Du, Nam Cao), or well-known international works in their commonly used Vietnamese rendering.
   Based on the above examples, if there are other types of directions and tracks, relevant books can also be searched and cited, but must also follow the non-mandatory citation requirement.
 
   If there are citations, integrate them naturally, do not pile them up stiffly, do not fabricate sources.
@@ -68,6 +69,7 @@ Based on the topic content, various expression methods such as statements, scene
 - Narration language must match the user's input video intent
 - If video intent is in Chinese, narration must be in Chinese
 - If video intent is in English, narration must be in English
+- If video intent is in Vietnamese, narration must be in Vietnamese (natural, conversational tiếng Việt with correct diacritics)
 - Unless the video intent explicitly specifies an output language, strictly follow the original language of the intent
 - The opening of the first storyboard should be completely naturally chosen based on the topic content, without any fixed vocabulary tendency
 - In the entire set of narrations, if any word (such as "sometimes", "actually", "have you ever") appears more than once as an opening, it is a failed creation
@@ -123,7 +125,7 @@ Strictly output in the following JSON format, do not add any additional text exp
 8. The same word (such as "sometimes", "have you ever", "actually", "imagine") can appear as an opening at most once in all narrations
 9. Do not form any hidden sentence pattern rules. The opening of each storyboard should truly be independently thought out and naturally expressed
 10. Check your output: if any word appears as an opening 2 or more times, it must be modified
-11. Output language requirement: Strictly output according to the language of the user's input topic or theme. For example: if the user's input is in English, the output copy must be in English, same for Chinese.
+11. Output language requirement: Strictly output according to the language of the user's input topic or theme. For example: if the user's input is in English, the output copy must be in English; same for Chinese, Vietnamese, or any other language.
 
 Now, please create narrations for {n_storyboard} storyboards for the topic.
 ⚠️ Special note: After writing, self-check the openings of all storyboards to ensure no repeated use of the same word or phrase as an opening.

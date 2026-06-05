@@ -1,0 +1,31 @@
+# OPT-IN extra: VieNeu-TTS — local Vietnamese TTS for the "vieneu" TTS mode
+# https://github.com/pnnbao97/VieNeu-TTS
+#
+# Kept OUT of requirements.txt on purpose: two of these packages have no
+# Linux x86_64 wheels and build from source, which would slow down (or break)
+# the standard notebook/Colab install for users who never use Vietnamese TTS.
+#
+# INSTALL (from the Wan2GP repo root, inside the Wan2GP env, AFTER the
+# standard `pip install -r requirements.txt -r Pixelle_video/requirements.txt`):
+#
+#   1. Build prerequisites on Linux (Colab: cmake/gcc are preinstalled,
+#      Rust is not):
+#        apt-get install -y cmake build-essential
+#        curl -sSf https://sh.rustup.rs | sh -s -- -y    # Rust for sea-g2p
+#        source "$HOME/.cargo/env"
+#
+#   2. pip install -r Pixelle_video/requirements-vieneu.txt
+#
+#   3. pip install vieneu==2.7.0 --no-deps
+#      --no-deps is REQUIRED: vieneu declares gradio>=5.49.1 (only used by its
+#      own demo app; Wan2GP pins gradio==5.29.0) and CPU onnxruntime (Wan2GP
+#      ships onnxruntime-gpu, same `onnxruntime` module). Installing vieneu
+#      normally would clobber both. Its remaining deps are already provided
+#      by Wan2GP (numpy, soundfile, librosa, tqdm, requests, PyYAML,
+#      huggingface_hub) or listed below.
+
+sea-g2p>=0.7.5                # Vietnamese G2P / text normalizer (Rust/maturin sdist on Linux x86_64 — needs cargo)
+llama-cpp-python==0.3.16      # GGUF backbone runtime (sdist on Linux — needs cmake + C compiler, ~10 min build)
+resemble-perth>=1.0.1         # audio watermarking, imports as `perth` (NOTE: the PyPI package named `perth` that
+                              # vieneu's own pyproject lists is an unrelated threading library — vieneu silently
+                              # falls back to no watermarking with it; resemble-perth is the real watermarker)

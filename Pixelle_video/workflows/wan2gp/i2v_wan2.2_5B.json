@@ -1,0 +1,14 @@
+{
+  "source": "wan2gp",
+  "description": "Wan 2.2 TextImage2Video 5B - 720p 24fps, medium VRAM, loaded in-process via WanGP",
+  "model_type": "ti2v_2_2",
+  "media_type": "video",
+  "fps": 24,
+  "frame_quant": 4,
+  "resolution_multiple": 32,
+  "max_pixels": 921600,
+  "max_frames": 121,
+  "settings": {
+    "image_prompt_type": "S"
+  }
+}

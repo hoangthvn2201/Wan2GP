@@ -1,0 +1,12 @@
+{
+  "source": "wan2gp",
+  "description": "Wan 2.2 Image2Video Enhanced Lightning v2 14B (4 steps), loaded in-process via WanGP",
+  "model_type": "i2v_2_2_Enhanced_Lightning_v2",
+  "media_type": "video",
+  "fps": 16,
+  "frame_quant": 4,
+  "resolution_multiple": 16,
+  "max_pixels": 399360,
+  "max_frames": 129,
+  "settings": {}
+}

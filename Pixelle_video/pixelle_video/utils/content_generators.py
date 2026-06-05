@@ -24,15 +24,33 @@ from typing import List, Optional, Literal
 from loguru import logger
 
 
+def _default_title_length(content: str) -> int:
+    """
+    Pick a script-aware title length limit.
+
+    The historical limit of 15 was calibrated for CJK titles (15 Chinese
+    characters is a full headline). Latin-script languages (English,
+    Vietnamese, ...) need roughly twice the characters for the same visual
+    width, so they get a 30-character budget instead.
+    """
+    has_cjk = any(
+        '一' <= ch <= '鿿' or      # CJK Unified Ideographs
+        '぀' <= ch <= 'ヿ' or      # Japanese kana
+        '가' <= ch <= '힯'         # Hangul
+        for ch in content
+    )
+    return 15 if has_cjk else 30
+
+
 async def generate_title(
     llm_service,
     content: str,
     strategy: Literal["auto", "direct", "llm"] = "auto",
-    max_length: int = 15
+    max_length: Optional[int] = None
 ) -> str:
     """
     Generate title from content
-    
+
     Args:
         llm_service: LLM service instance
         content: Source content (topic or script)
@@ -40,17 +58,22 @@ async def generate_title(
             - "auto": Auto-decide based on content length (default)
             - "direct": Use content directly (truncated if needed)
             - "llm": Always use LLM to generate title
-        max_length: Maximum title length (default: 15)
-    
+        max_length: Maximum title length (default: script-aware —
+            15 chars for CJK content, 30 for Latin-script languages
+            such as English or Vietnamese)
+
     Returns:
         Generated title
     """
+    if max_length is None:
+        max_length = _default_title_length(content)
+
     if strategy == "direct":
         content = content.strip()
         return content[:max_length] if len(content) > max_length else content
-    
+
     if strategy == "auto":
-        if len(content.strip()) <= 15:
+        if len(content.strip()) <= max_length:
             return content.strip()
         # Fall through to LLM
     

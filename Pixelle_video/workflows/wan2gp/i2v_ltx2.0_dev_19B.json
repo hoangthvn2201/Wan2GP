@@ -1,0 +1,14 @@
+{
+  "source": "wan2gp",
+  "media_type": "video",
+  "fps": 24,
+  "frame_quant": 8,
+  "resolution_multiple": 32,
+  "max_pixels": 921600,
+  "max_frames": 241,
+  "description": "LTX-2 2.0 Dev 19B Image2Video (start keyframe, two-stage, video+audio), via WanGP",
+  "model_type": "ltx2_19B",
+  "settings": {
+    "image_prompt_type": "S"
+  }
+}

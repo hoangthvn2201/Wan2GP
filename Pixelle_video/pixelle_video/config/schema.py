@@ -41,6 +41,22 @@ class TTSLocalConfig(BaseModel):
     speed: float = Field(default=1.2, ge=0.5, le=2.0, description="Speech speed multiplier (0.5-2.0)")
 
 
+class TTSVieNeuConfig(BaseModel):
+    """VieNeu TTS configuration (local Vietnamese TTS, on-device)"""
+    voice: str = Field(
+        default="Xuân Vĩnh (Nam - Miền Nam)",
+        description=(
+            "VieNeu preset voice ID (turbo model: 'Xuân Vĩnh (Nam - Miền Nam)', "
+            "'Phạm Tuyên (Nam - Miền Bắc)', 'Bích Ngọc (Nữ - Miền Bắc)', "
+            "'Thục Đoan (Nữ - Miền Nam)'; fuzzy-matched, e.g. 'Tuyen' works)"
+        ),
+    )
+    speed: float = Field(default=1.0, ge=0.5, le=2.0, description="Speech speed multiplier (0.5-2.0)")
+    ref_audio: Optional[str] = Field(default=None, description="Reference audio path for zero-shot voice cloning (overrides voice)")
+    mode: str = Field(default="turbo", description="VieNeu backend: 'turbo' (CPU-friendly GGUF/ONNX) or 'standard'/'fast' (GPU)")
+    device: str = Field(default="cpu", description="Inference device: 'cpu' or 'cuda'")
+
+
 class TTSComfyUIConfig(BaseModel):
     """ComfyUI TTS configuration"""
     default_workflow: Optional[str] = Field(default=None, description="Default TTS workflow (optional)")
@@ -48,8 +64,9 @@ class TTSComfyUIConfig(BaseModel):
 
 class TTSSubConfig(BaseModel):
     """TTS-specific configuration (under comfyui.tts)"""
-    inference_mode: str = Field(default="local", description="TTS inference mode: 'local' or 'comfyui'")
+    inference_mode: str = Field(default="local", description="TTS inference mode: 'local', 'vieneu' or 'comfyui'")
     local: TTSLocalConfig = Field(default_factory=TTSLocalConfig, description="Local TTS (Edge TTS) configuration")
+    vieneu: TTSVieNeuConfig = Field(default_factory=TTSVieNeuConfig, description="VieNeu TTS (local Vietnamese) configuration")
     comfyui: TTSComfyUIConfig = Field(default_factory=TTSComfyUIConfig, description="ComfyUI TTS configuration")
     
     # Backward compatibility: keep default_workflow at top level

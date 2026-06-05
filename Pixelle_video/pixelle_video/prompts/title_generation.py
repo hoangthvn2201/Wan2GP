@@ -26,6 +26,7 @@ Requirements:
 1. **Language Consistency (CRITICAL)**: The title MUST be in the same language as the input content
    - If the input content is in English, the title MUST be in English
    - If the input content is in Chinese, the title MUST be in Chinese
+   - If the input content is in Vietnamese, the title MUST be in Vietnamese (with correct diacritics)
    - Strictly follow the language of the input content
 
 2. **Character Limit (CRITICAL)**: The title MUST NOT exceed {max_length} characters
@@ -56,6 +57,11 @@ Requirements:
    - For Chinese:
      * "10,000元" → "万元" or "1万"
      * "每个月" → "月入" or "月收"
+
+   - For Vietnamese:
+     * "10.000 đồng" → "10K"
+     * "mỗi tháng" → "/tháng"
+     * "như thế nào" → "thế nào" or "cách"
 
 7. Accurately summarize the core content
 8. Attractive and engaging, suitable as a video title

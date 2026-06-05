@@ -39,6 +39,19 @@ dev = [
     "pytest-asyncio>=0.23.0",
     "ruff>=0.6.0",
 ]
+# Vietnamese TTS (VieNeu-TTS). Mirrors requirements-vieneu.txt — see that
+# file for build prerequisites (cmake, Rust) and why vieneu itself must be
+# installed with `pip install vieneu==2.7.0 --no-deps` (its gradio>=5.49.1 /
+# CPU onnxruntime pins clash with Wan2GP's gradio==5.29.0 / onnxruntime-gpu).
+vieneu = [
+    "sea-g2p>=0.7.5",
+    "llama-cpp-python==0.3.16",
+    "resemble-perth>=1.0.1",
+    "numpy",
+    "soundfile",
+    "librosa>=0.11.0",
+    "huggingface_hub",
+]
 
 [build-system]
 requires = ["hatchling"]

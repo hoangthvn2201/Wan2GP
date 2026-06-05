@@ -28,7 +28,26 @@ comfyui:
   
   # TTS-specific configuration
   tts:
-    default_workflow: selfhost/tts_edge.json  # TTS workflow to use
+    # Inference mode: local (Edge TTS, online, free) | vieneu (VieNeu-TTS,
+    # local Vietnamese voices, on-device) | comfyui (workflow-based)
+    inference_mode: local
+    local:
+      voice: zh-CN-YunjianNeural
+      speed: 1.2
+    # VieNeu-TTS (Vietnamese, https://github.com/pnnbao97/VieNeu-TTS)
+    # Install first: pip install -r Pixelle_video/requirements-vieneu.txt
+    #                pip install vieneu==2.7.0 --no-deps
+    vieneu:
+      # Preset voices (turbo model): Xuân Vĩnh (Nam - Miền Nam), Phạm Tuyên (Nam - Miền Bắc),
+      #                              Bích Ngọc (Nữ - Miền Bắc), Thục Đoan (Nữ - Miền Nam)
+      # Names are fuzzy-matched (e.g. "Tuyen" resolves to Phạm Tuyên)
+      voice: Xuân Vĩnh (Nam - Miền Nam)
+      speed: 1.0         # Speed multiplier 0.5-2.0 (pitch-preserving time stretch)
+      ref_audio: null    # Optional 3-5s wav/mp3 for zero-shot voice cloning (overrides voice)
+      mode: turbo        # turbo = CPU-friendly GGUF/ONNX backend (recommended)
+      device: cpu        # cpu or cuda
+    comfyui:
+      default_workflow: selfhost/tts_edge.json  # TTS workflow to use
   
   # Image-specific configuration
   image:
