@@ -661,6 +661,9 @@
     "flxw.final.credits_label": "📜 素材来源致谢",
     "flxw.final.credits_line": "场景 {n}：{photographer} —— {source}（{license}）",
     "flxw.final.credits_hint": "Pexels/Pixabay 内容可免费使用；注明摄影师以示感谢。",
-    "flxw.final.new_project": "🆕 开始新项目"
+    "flxw.final.new_project": "🆕 开始新项目",
+    "flxw.setup.search_only_label": "🔒 仅用素材（从不生成）",
+    "flxw.setup.search_only_help": "所有场景均使用真实素材：AI 为每个场景规划搜索关键词，搜索无结果时会改用更宽泛的关键词重试，而不会回退到 AI 生成。全程不加载任何生成模型 —— 视频只需 TTS + ffmpeg（无需 GPU）。",
+    "flxw.plan.search_only_info": "🔒 仅素材项目 —— 每个场景都规划为素材搜索；搜索无结果时改用更宽泛的关键词重试，绝不回退到 AI 生成。"
   }
 }

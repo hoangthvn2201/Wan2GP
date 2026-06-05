@@ -47,6 +47,8 @@ class FlexConfig:
     candidates_per_scene: int = 6     # total candidates shown per scene
     min_resolution: int = 720         # min(width, height) of acceptable results
     allow_fallback: bool = True       # empty search -> fall back to generation
+    search_only: bool = False         # stock-only: plan every scene as search and
+                                      # never fall back to AI generation
 
     @property
     def pexels_active(self) -> bool:
@@ -85,6 +87,7 @@ def load_flex_config(path: Optional[str] = None) -> FlexConfig:
         candidates_per_scene=int(section.get("candidates_per_scene", 6)),
         min_resolution=int(section.get("min_resolution", 720)),
         allow_fallback=bool(section.get("allow_fallback", True)),
+        search_only=bool(section.get("search_only", False)),
     )
 
     # Env vars beat the file (useful for deployments / keeping keys out of git)
@@ -108,6 +111,7 @@ def save_flex_config(config: FlexConfig, path: Optional[str] = None):
             "candidates_per_scene": config.candidates_per_scene,
             "min_resolution": config.min_resolution,
             "allow_fallback": config.allow_fallback,
+            "search_only": config.search_only,
         }
     }
     with open(config_path, "w", encoding="utf-8") as f:

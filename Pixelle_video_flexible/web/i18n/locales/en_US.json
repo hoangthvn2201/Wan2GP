@@ -661,6 +661,9 @@
     "flxw.final.credits_label": "📜 Stock media credits",
     "flxw.final.credits_line": "Scene {n}: {photographer} — {source} ({license})",
     "flxw.final.credits_hint": "Pexels/Pixabay content is free to use; crediting the photographers is appreciated.",
-    "flxw.final.new_project": "🆕 Start New Project"
+    "flxw.final.new_project": "🆕 Start New Project",
+    "flxw.setup.search_only_label": "🔒 Stock-only (never generate)",
+    "flxw.setup.search_only_help": "Every scene uses real stock media: the AI plans search keywords for all scenes, and an empty search retries with broader keywords instead of falling back to AI generation. No generation model is ever loaded — the video needs only TTS + ffmpeg (no GPU).",
+    "flxw.plan.search_only_info": "🔒 Stock-only project — every scene is planned as a stock search; empty searches retry with broader keywords and never fall back to AI generation."
   }
 }

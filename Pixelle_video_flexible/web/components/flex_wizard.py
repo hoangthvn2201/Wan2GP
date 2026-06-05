@@ -229,8 +229,8 @@ _LANGUAGE_CHOICES = [
 ]
 
 
-def _render_providers_panel(engine: FlexibleVideoEngine):
-    """Stock-search status: which providers are configured."""
+def _render_providers_panel(engine: FlexibleVideoEngine) -> dict:
+    """Stock-search status (which providers are configured) + stock-only toggle."""
     with st.container(border=True):
         st.markdown(f"**{tr('flxw.setup.providers_label')}**")
         if engine.aggregator.enabled:
@@ -239,6 +239,15 @@ def _render_providers_panel(engine: FlexibleVideoEngine):
         else:
             st.warning(tr("flxw.setup.providers_none"))
         st.caption(tr("flxw.setup.providers_hint"))
+
+        search_only = st.toggle(
+            tr("flxw.setup.search_only_label"),
+            value=engine.flex_config.search_only and engine.aggregator.enabled,
+            help=tr("flxw.setup.search_only_help"),
+            key="flxw_setup_search_only",
+            disabled=not engine.aggregator.enabled,
+        )
+    return {"search_only": bool(search_only) and engine.aggregator.enabled}
 
 
 def _render_setup(engine: FlexibleVideoEngine):
@@ -276,7 +285,7 @@ def _render_setup(engine: FlexibleVideoEngine):
                 key="flxw_setup_language",
             )
 
-        _render_providers_panel(engine)
+        provider_params = _render_providers_panel(engine)
 
         # ---- Narration loudness (TTS output is often quiet; fixed post-TTS) ----
         with st.container(border=True):
@@ -334,6 +343,8 @@ def _render_setup(engine: FlexibleVideoEngine):
                     # --- Narration loudness (applied post-TTS by the engine) ---
                     "tts_volume": tts_volume,
                     "tts_normalize": tts_normalize,
+                    # --- Media sourcing ---
+                    "search_only": provider_params.get("search_only", False),
                     # --- Provenance ---
                     "flex_language": None if language == "auto" else language,
                     "flex_providers": engine.aggregator.provider_names,
@@ -502,6 +513,8 @@ def _render_plan(engine: FlexibleVideoEngine):
     st.caption(tr("flxw.plan.hint"))
     if not engine.aggregator.enabled:
         st.info(tr("flxw.plan.no_providers_info"))
+    elif project.params.get("search_only"):
+        st.info(tr("flxw.plan.search_only_info"))
 
     prompt_prefix = _effective_prefix(project)
 

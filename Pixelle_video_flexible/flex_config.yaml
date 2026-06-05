@@ -15,3 +15,5 @@ media_search:
   candidates_per_scene: 6     # stock candidates fetched/shown per scene
   min_resolution: 720         # discard results whose short side is below this
   allow_fallback: true        # empty search results -> fall back to generation
+  search_only: false          # true = stock-only: every scene searches, empty results
+                              # retry with broader keywords, AI generation is never used

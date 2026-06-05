@@ -50,7 +50,11 @@ from flexvid.normalize import (
     pick_orientation,
     target_media_size,
 )
-from flexvid.prompts import build_candidate_ranking_prompt, build_scene_plan_prompt
+from flexvid.prompts import (
+    build_broaden_query_prompt,
+    build_candidate_ranking_prompt,
+    build_scene_plan_prompt,
+)
 from flexvid.search import MediaSearchAggregator
 
 
@@ -115,17 +119,31 @@ class FlexibleVideoEngine(SceneBySceneEngine):
         """'video' when scenes end up as clips, else 'image'."""
         return "video" if project.is_video_workflow else "image"
 
+    def _search_only(self, project: SceneProject) -> bool:
+        """
+        Stock-only mode: every scene searches, AI generation is never used
+        (so no generation model is ever loaded). Per-project override in
+        params, falling back to flex_config; meaningless without providers.
+        """
+        flag = project.params.get("search_only")
+        if flag is None:
+            flag = self.flex_config.search_only
+        return bool(flag) and self.aggregator.enabled
+
     def _apply_plan_entry(
         self,
         project: SceneProject,
         scene: FlexScene,
         entry: dict,
         prompt_prefix: str = "",
+        search_only: bool = False,
     ):
         """Map one LLM plan entry onto a scene (capability rules enforced)."""
         source = str(entry.get("source") or "generate").lower()
         if source == "search" and not self.aggregator.enabled:
             source = "generate"
+        elif search_only and str(entry.get("search_query") or "").strip():
+            source = "search"
 
         media_type = str(entry.get("media_type") or "image").lower()
         if self._media_capability(project) == "image":
@@ -159,6 +177,7 @@ class FlexibleVideoEngine(SceneBySceneEngine):
         media type, and the matching search query or generation prompt.
         """
         narrations = [s.narration for s in project.scenes]
+        search_only = self._search_only(project)
         prompt = build_scene_plan_prompt(
             narrations,
             title=project.title,
@@ -166,6 +185,7 @@ class FlexibleVideoEngine(SceneBySceneEngine):
             providers_enabled=self.aggregator.enabled,
             min_words=min_words,
             max_words=max_words,
+            search_only=search_only,
         )
 
         def _check(result: dict):
@@ -174,9 +194,11 @@ class FlexibleVideoEngine(SceneBySceneEngine):
                 raise ValueError(f"Expected {len(narrations)} plan entries, got {len(scenes)}")
             for i, entry in enumerate(scenes):
                 source = str(entry.get("source") or "").lower()
-                if source == "search" and not str(entry.get("search_query") or "").strip():
-                    raise ValueError(f"Plan entry {i} is 'search' but has no search_query")
-                if source == "generate" and not str(entry.get("gen_prompt") or "").strip():
+                if (source == "search" or search_only) and \
+                        not str(entry.get("search_query") or "").strip():
+                    raise ValueError(f"Plan entry {i} needs a search_query")
+                if source == "generate" and not search_only and \
+                        not str(entry.get("gen_prompt") or "").strip():
                     raise ValueError(f"Plan entry {i} is 'generate' but has no gen_prompt")
 
         result = await self._llm_json(
@@ -185,7 +207,8 @@ class FlexibleVideoEngine(SceneBySceneEngine):
         )
 
         for scene, entry in zip(project.scenes, result["scenes"]):
-            self._apply_plan_entry(project, scene, entry, prompt_prefix)
+            self._apply_plan_entry(project, scene, entry, prompt_prefix,
+                                   search_only=search_only)
 
         n_search = sum(1 for s in project.scenes if s.source == "search")
         logger.info(
@@ -203,6 +226,7 @@ class FlexibleVideoEngine(SceneBySceneEngine):
         max_words: int = 60,
     ) -> FlexScene:
         """Re-plan the media sourcing of a single scene."""
+        search_only = self._search_only(project)
         prompt = build_scene_plan_prompt(
             [scene.narration],
             title=project.title,
@@ -210,17 +234,21 @@ class FlexibleVideoEngine(SceneBySceneEngine):
             providers_enabled=self.aggregator.enabled,
             min_words=min_words,
             max_words=max_words,
+            search_only=search_only,
         )
 
         def _check(result: dict):
             if len(result.get("scenes") or []) != 1:
                 raise ValueError("Expected exactly 1 plan entry")
+            if search_only and not str(result["scenes"][0].get("search_query") or "").strip():
+                raise ValueError("Plan entry needs a search_query")
 
         result = await self._llm_json(
             prompt, temperature=0.8, base_max_tokens=4096,
             label="Scene media re-plan", validate=_check,
         )
-        self._apply_plan_entry(project, scene, result["scenes"][0], prompt_prefix)
+        self._apply_plan_entry(project, scene, result["scenes"][0], prompt_prefix,
+                               search_only=search_only)
         return scene
 
     # ==================== Step: Stock search ====================
@@ -238,33 +266,58 @@ class FlexibleVideoEngine(SceneBySceneEngine):
     ) -> FlexScene:
         """
         Query the stock providers for this scene and auto-pick the best
-        candidate. Empty results fall back to generation (when allowed):
-        the scene flips to source=generate and gets a generation prompt.
+        candidate. Empty results first retry ONCE with an LLM-broadened query;
+        if still empty, fall back to generation (when allowed and the project
+        is not stock-only) — the scene flips to source=generate and gets a
+        generation prompt.
         """
         if not scene.search_query:
             raise ValueError("Scene has no search query — run the media plan first")
         if not self.aggregator.enabled:
             raise RuntimeError("No stock providers configured (see flex_config.yaml)")
 
-        candidates = await self.aggregator.search(
-            scene.search_query,
+        search_kwargs = dict(
             media_type=scene.plan_media_type,
             n_total=self.flex_config.candidates_per_scene,
             orientation=self._project_orientation(project),
             min_width=self.flex_config.min_resolution,
         )
+        candidates = await self.aggregator.search(scene.search_query, **search_kwargs)
+
+        if not candidates:
+            # One broadened retry before considering any fallback
+            broadened = await self._broaden_search_query(scene)
+            if broadened and broadened != scene.search_query:
+                logger.info(f"Scene {index + 1}: retrying with broader query '{broadened}'")
+                candidates = await self.aggregator.search(broadened, **search_kwargs)
+                if candidates:
+                    scene.search_query = broadened   # show what actually worked
+
         scene.candidates = candidates
         scene.picked_candidate_id = None
         scene.search_attempted = True
 
         if not candidates:
             logger.warning(f"Scene {index + 1}: no stock results for '{scene.search_query}'")
-            if self.flex_config.allow_fallback:
+            if self.flex_config.allow_fallback and not self._search_only(project):
                 await self._fall_back_to_generate(scene, prompt_prefix)
             return scene
 
         await self.rank_candidates(project, scene)
         return scene
+
+    async def _broaden_search_query(self, scene: FlexScene) -> Optional[str]:
+        """LLM rewrite of a failed query into broader stock keywords (best effort)."""
+        try:
+            result = await self._llm_json(
+                build_broaden_query_prompt(scene.narration, scene.search_query or ""),
+                temperature=0.7, base_max_tokens=1024, max_retries=2,
+                label="Broaden search query",
+            )
+            return str(result.get("search_query") or "").strip() or None
+        except ValueError as e:
+            logger.warning(f"Query broadening failed: {e}")
+            return None
 
     async def _fall_back_to_generate(self, scene: FlexScene, prompt_prefix: str = ""):
         """Search came up empty -> the scene generates its media instead."""
@@ -483,9 +536,18 @@ class FlexibleVideoEngine(SceneBySceneEngine):
                     await self.rank_candidates(project, scene)
                 _report("download")
                 await self.apply_picked_candidate(project, scene, index)
-            elif scene.is_search and self.flex_config.allow_fallback:
+            elif (scene.is_search and self.flex_config.allow_fallback
+                  and not self._search_only(project)):
                 # attempted earlier but empty and not yet flipped
                 await self._fall_back_to_generate(scene, prompt_prefix)
+            elif scene.is_search:
+                # stock-only (or fallback disabled) and nothing found: fail
+                # clearly instead of rendering an empty frame
+                raise RuntimeError(
+                    f"No stock media found for '{scene.search_query}' and AI "
+                    f"generation is disabled for this project — edit the "
+                    f"scene's search keywords and retry"
+                )
 
         # --- Generate branch (incl. search fallback) ------------------------
         if project.needs_media and not scene.has_media and not (is_flex and scene.is_search):

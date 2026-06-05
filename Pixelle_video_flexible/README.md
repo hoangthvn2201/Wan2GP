@@ -51,13 +51,22 @@ rendering, composition, History and persistence are all inherited.
      pixabay: {enabled: true, api_key: "YOUR_PIXABAY_KEY"}   # pixabay.com/api/docs
      candidates_per_scene: 6
      min_resolution: 720
-     allow_fallback: true
+     allow_fallback: true     # empty search -> fall back to AI generation
+     search_only: false       # true = stock-only, AI generation never used
    ```
 
    or environment variables: `PEXELS_API_KEY` / `PIXABAY_API_KEY`.
 
    With **no keys configured the app still works** — every scene is simply
    AI-generated.
+
+   **Stock-only mode (no image/video generator):** set `search_only: true`
+   (or use the 🔒 toggle on the wizard's Setup step). The media plan then
+   forces every scene to search — abstract ideas are rephrased into concrete
+   stock-findable imagery — and an empty search retries once with
+   LLM-broadened keywords instead of falling back to generation. Since WanGP
+   models load lazily on first generation, a stock-only video never downloads
+   a model and doesn't need the GPU (TTS + ffmpeg + Chromium only).
 
 3. Start (port **8504**; 8501 = original app, 8502 = scene-by-scene, 8503 = PDF):
 

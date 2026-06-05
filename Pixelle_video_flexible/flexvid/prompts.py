@@ -93,6 +93,7 @@ def build_scene_plan_prompt(
     providers_enabled: bool,
     min_words: int = 30,
     max_words: int = 60,
+    search_only: bool = False,
 ) -> str:
     """
     Build the per-scene source-orchestration prompt.
@@ -101,6 +102,8 @@ def build_scene_plan_prompt(
         media_capability: "image" (image template — stills only) or
             "video" (video template — clips preferred, stills allowed).
         providers_enabled: False -> every scene must be source=generate.
+        search_only: True -> every scene must be source=search (stock-only
+            project, AI generation disabled).
     """
     if media_capability == "video":
         media_type_rule = (
@@ -110,13 +113,21 @@ def build_scene_plan_prompt(
     else:
         media_type_rule = 'this is an IMAGE project: media_type must always be "image"'
 
-    if providers_enabled:
-        availability_rule = ""
-    else:
+    if not providers_enabled:
         availability_rule = (
             "- NOTE: no stock providers are configured for this project — "
             'every scene MUST use source "generate"\n'
         )
+    elif search_only:
+        availability_rule = (
+            "- NOTE: this is a STOCK-ONLY project — every scene MUST use source "
+            '"search" with a search_query, never "generate". For abstract ideas, '
+            "translate them into concrete real-world imagery stock libraries DO "
+            'have (e.g. "freedom" → "bird flying open sky", "growth" → '
+            '"time lapse plant sprouting")\n'
+        )
+    else:
+        availability_rule = ""
 
     narrations_json = json.dumps({"narrations": narrations}, ensure_ascii=False, indent=2)
     return SCENE_PLAN_PROMPT.format(
@@ -130,7 +141,42 @@ def build_scene_plan_prompt(
     )
 
 
-# ==================== ② Candidate ranking ====================
+# ==================== ②b Broaden a failed search query ====================
+
+BROADEN_QUERY_PROMPT = """# Role Definition
+You are a stock footage researcher. A stock media search returned ZERO results, and you rewrite the query so it actually finds something — broader and more generic, while still illustrating the scene.
+
+# Scene Narration
+{narration}
+
+# Failed Query
+{query}
+
+# Rewriting Rules
+- 2~4 common **English** words describing concrete, filmable real-world imagery
+- Drop anything rare: proper names, brands, niche jargon, overly specific combinations
+- Keep the visual essence of the narration — a more generic shot of the same idea beats an unrelated pretty shot
+- Must be meaningfully DIFFERENT from the failed query (not a reordering)
+
+# Output Format
+Strictly output in the following JSON format, do not add any additional text explanations:
+
+```json
+{{
+  "search_query": "..."
+}}
+```
+
+Now, please rewrite the query. Only output JSON, no other content.
+"""
+
+
+def build_broaden_query_prompt(narration: str, query: str) -> str:
+    """Build the failed-query broadening prompt."""
+    return BROADEN_QUERY_PROMPT.format(narration=narration, query=query or "(none)")
+
+
+# ==================== ③ Candidate ranking ====================
 
 CANDIDATE_RANKING_PROMPT = """# Role Definition
 You are a video editor choosing stock footage. You receive a scene narration and the METADATA of stock media candidates (description/tags, dimensions, duration). Pick the candidate whose content best illustrates the narration.
