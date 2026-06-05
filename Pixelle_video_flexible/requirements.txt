@@ -1,0 +1,9 @@
+# Pixelle-Video Flexible — no extra Python dependencies.
+#
+# Everything is covered by ../Pixelle_video/requirements.txt (httpx, pyyaml,
+# ffmpeg-python, streamlit, loguru, ...). The `ffmpeg` binary must be on PATH
+# (already required by the core's VideoService).
+#
+# Stock search API keys are configured in ./flex_config.yaml or via the
+# PEXELS_API_KEY / PIXABAY_API_KEY environment variables.
+-r ../Pixelle_video/requirements.txt

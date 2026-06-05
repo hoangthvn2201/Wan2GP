@@ -1,0 +1,17 @@
+# Media-search configuration for the flexible pipeline.
+#
+# Both providers are FREE — get keys at:
+#   Pexels:  https://www.pexels.com/api/
+#   Pixabay: https://pixabay.com/api/docs/
+#
+# Environment variables PEXELS_API_KEY / PIXABAY_API_KEY override these values.
+media_search:
+  pexels:
+    enabled: true
+    api_key: ""
+  pixabay:
+    enabled: true
+    api_key: ""
+  candidates_per_scene: 6     # stock candidates fetched/shown per scene
+  min_resolution: 720         # discard results whose short side is below this
+  allow_fallback: true        # empty search results -> fall back to generation
