@@ -1,0 +1,14 @@
+# Pixelle-Video · PDF extra dependencies
+#
+# Everything else is shared with the standard install:
+#   pip install -r requirements.txt -r Pixelle_video/requirements.txt -r Pixelle_video_pdf/requirements.txt
+# (run from the Wan2GP repo root, inside the Wan2GP env)
+#
+# The scene-by-scene app (Pixelle_video_scene_by_scene/) has no extra deps;
+# this app only adds PDF text extraction.
+
+# PDF text extraction (fast, keeps the table of contents)
+pymupdf>=1.24.0
+
+# Fallback extractor (pure python; used only if PyMuPDF is unavailable)
+pypdf>=5.0.0
