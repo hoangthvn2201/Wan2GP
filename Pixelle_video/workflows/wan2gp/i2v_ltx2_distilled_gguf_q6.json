@@ -1,0 +1,15 @@
+{
+  "source": "wan2gp",
+  "media_type": "video",
+  "fps": 24,
+  "frame_quant": 8,
+  "resolution_multiple": 32,
+  "max_pixels": 921600,
+  "max_frames": 241,
+  "description": "LTX-2 2.3 Distilled GGUF Q6_K 22B Image2Video (start keyframe, 8 steps, light/no AV connector), via WanGP",
+  "model_type": "ltx2_22B_distilled_gguf_q6_k",
+  "settings": {
+    "num_inference_steps": 8,
+    "image_prompt_type": "S"
+  }
+}
