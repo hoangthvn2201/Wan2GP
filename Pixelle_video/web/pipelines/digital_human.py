@@ -398,6 +398,11 @@ class DigitalHumanPipelineUI(PipelineUI):
                             if tts_inference_mode == "local":
                                 tts_kwargs["voice"] = tts_voice
                                 tts_kwargs["speed"] = tts_speed
+                            elif tts_inference_mode == "vieneu":
+                                tts_kwargs["voice"] = tts_voice
+                                tts_kwargs["speed"] = tts_speed
+                                if ref_audio:
+                                    tts_kwargs["ref_audio"] = ref_audio
                             elif tts_inference_mode == "comfyui":
                                 if tts_workflow:
                                     tts_kwargs["workflow"] = tts_workflow
@@ -492,6 +497,11 @@ class DigitalHumanPipelineUI(PipelineUI):
                                 if tts_inference_mode == "local":
                                     tts_kwargs["voice"] = tts_voice
                                     tts_kwargs["speed"] = tts_speed
+                                elif tts_inference_mode == "vieneu":
+                                    tts_kwargs["voice"] = tts_voice
+                                    tts_kwargs["speed"] = tts_speed
+                                    if ref_audio:
+                                        tts_kwargs["ref_audio"] = ref_audio
                                 elif tts_inference_mode == "comfyui":
                                     if tts_workflow:
                                         tts_kwargs["workflow"] = tts_workflow
@@ -573,6 +583,11 @@ class DigitalHumanPipelineUI(PipelineUI):
                                 if tts_inference_mode == "local":
                                     tts_kwargs["voice"] = tts_voice
                                     tts_kwargs["speed"] = tts_speed
+                                elif tts_inference_mode == "vieneu":
+                                    tts_kwargs["voice"] = tts_voice
+                                    tts_kwargs["speed"] = tts_speed
+                                    if ref_audio:
+                                        tts_kwargs["ref_audio"] = ref_audio
                                 elif tts_inference_mode == "comfyui":
                                     if tts_workflow:
                                         tts_kwargs["workflow"] = tts_workflow

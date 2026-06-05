@@ -44,18 +44,22 @@ def render_style_config(pixelle_video):
         tts_config = comfyui_config["tts"]
         
         # Inference mode selection
+        tts_mode_options = ["local", "vieneu", "comfyui"]
+        saved_tts_mode = tts_config.get("inference_mode", "local")
         tts_mode = st.radio(
             tr("tts.inference_mode"),
-            ["local", "comfyui"],
+            tts_mode_options,
             horizontal=True,
             format_func=lambda x: tr(f"tts.mode.{x}"),
-            index=0 if tts_config.get("inference_mode", "local") == "local" else 1,
+            index=tts_mode_options.index(saved_tts_mode) if saved_tts_mode in tts_mode_options else 0,
             key="tts_inference_mode"
         )
-        
+
         # Show hint based on mode
         if tts_mode == "local":
             st.caption(tr("tts.mode.local_hint"))
+        elif tts_mode == "vieneu":
+            st.caption(tr("tts.mode.vieneu_hint"))
         else:
             st.caption(tr("tts.mode.comfyui_hint"))
         
@@ -118,7 +122,74 @@ def render_style_config(pixelle_video):
             # Variables for video generation
             tts_workflow_key = None
             ref_audio_path = None
-        
+
+        # ================================================================
+        # VieNeu Mode UI (local Vietnamese TTS)
+        # ================================================================
+        elif tts_mode == "vieneu":
+            from pixelle_video.utils.vieneu_tts_util import (
+                list_vieneu_voices,
+                is_vieneu_available,
+            )
+
+            if not is_vieneu_available():
+                st.warning(tr("tts.vieneu_not_installed"))
+
+            # Get saved settings from config
+            vieneu_config = tts_config.get("vieneu", {})
+            saved_voice = vieneu_config.get("voice", "Binh")
+            saved_speed = vieneu_config.get("speed", 1.0)
+
+            # Build voice options
+            vieneu_voices = list_vieneu_voices()
+            voice_options = [v["label"] for v in vieneu_voices]
+            voice_ids = [v["id"] for v in vieneu_voices]
+            default_voice_index = voice_ids.index(saved_voice) if saved_voice in voice_ids else 0
+
+            # Two-column layout: Voice | Speed
+            voice_col, speed_col = st.columns([1, 1])
+
+            with voice_col:
+                selected_voice_display = st.selectbox(
+                    tr("tts.voice_selector"),
+                    voice_options,
+                    index=default_voice_index,
+                    key="tts_vieneu_voice"
+                )
+                selected_voice = voice_ids[voice_options.index(selected_voice_display)]
+
+            with speed_col:
+                tts_speed = st.slider(
+                    tr("tts.speed"),
+                    min_value=0.5,
+                    max_value=2.0,
+                    value=saved_speed,
+                    step=0.1,
+                    format="%.1fx",
+                    key="tts_vieneu_speed"
+                )
+                st.caption(tr("tts.speed_label", speed=f"{tts_speed:.1f}"))
+
+            # Optional reference audio for zero-shot voice cloning
+            ref_audio_file = st.file_uploader(
+                tr("tts.ref_audio"),
+                type=["mp3", "wav", "flac", "m4a", "aac", "ogg"],
+                help=tr("tts.ref_audio_help"),
+                key="vieneu_ref_audio_upload"
+            )
+
+            ref_audio_path = None
+            if ref_audio_file is not None:
+                st.audio(ref_audio_file)
+                temp_dir = Path("temp")
+                temp_dir.mkdir(exist_ok=True)
+                ref_audio_path = temp_dir / f"ref_audio_{ref_audio_file.name}"
+                with open(ref_audio_path, "wb") as f:
+                    f.write(ref_audio_file.getbuffer())
+
+            # Variables for video generation
+            tts_workflow_key = None
+
         # ================================================================
         # ComfyUI Mode UI
         # ================================================================
@@ -204,6 +275,11 @@ def render_style_config(pixelle_video):
                         if tts_mode == "local":
                             tts_params["voice"] = selected_voice
                             tts_params["speed"] = tts_speed
+                        elif tts_mode == "vieneu":
+                            tts_params["voice"] = selected_voice
+                            tts_params["speed"] = tts_speed
+                            if ref_audio_path:
+                                tts_params["ref_audio"] = str(ref_audio_path)
                         else:  # comfyui
                             tts_params["workflow"] = tts_workflow_key
                             if ref_audio_path:
@@ -901,8 +977,8 @@ def render_style_config(pixelle_video):
     # Return all style configuration parameters
     return {
         "tts_inference_mode": tts_mode,
-        "tts_voice": selected_voice if tts_mode == "local" else None,
-        "tts_speed": tts_speed if tts_mode == "local" else None,
+        "tts_voice": selected_voice if tts_mode in ("local", "vieneu") else None,
+        "tts_speed": tts_speed if tts_mode in ("local", "vieneu") else None,
         "tts_workflow": tts_workflow_key if tts_mode == "comfyui" else None,
         "ref_audio": str(ref_audio_path) if ref_audio_path else None,
         "frame_template": frame_template,

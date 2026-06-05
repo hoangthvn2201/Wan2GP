@@ -174,6 +174,14 @@ class FrameProcessor:
                 tts_params["voice"] = config.voice_id
             if config.tts_speed is not None:
                 tts_params["speed"] = config.tts_speed
+        elif config.tts_inference_mode == "vieneu":
+            # VieNeu mode: pass voice, speed, and optional ref_audio (voice cloning)
+            if config.voice_id:
+                tts_params["voice"] = config.voice_id
+            if config.tts_speed is not None:
+                tts_params["speed"] = config.tts_speed
+            if config.ref_audio:
+                tts_params["ref_audio"] = config.ref_audio
         else:  # comfyui
             # ComfyUI mode: pass workflow, voice, speed, and ref_audio
             if config.tts_workflow:

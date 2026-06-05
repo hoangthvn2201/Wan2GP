@@ -15,6 +15,12 @@ comfyui:
     local:
       voice: zh-CN-YunjianNeural
       speed: 1.2
+    vieneu:
+      voice: Binh
+      speed: 1.0
+      ref_audio: null
+      mode: turbo
+      device: cpu
     comfyui:
       default_workflow: null
   image:

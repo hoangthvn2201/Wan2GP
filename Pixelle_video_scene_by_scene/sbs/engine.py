@@ -252,6 +252,9 @@ class SceneBySceneEngine:
         if tts_inference_mode == "local":
             voice_id = params.get("tts_voice") or "zh-CN-YunjianNeural"
             tts_workflow = None
+        elif tts_inference_mode == "vieneu":
+            voice_id = params.get("tts_voice") or "Binh"
+            tts_workflow = None
         else:  # comfyui
             voice_id = None
             tts_workflow = params.get("tts_workflow")
@@ -333,6 +336,13 @@ class SceneBySceneEngine:
                 tts_params["voice"] = config.voice_id
             if config.tts_speed is not None:
                 tts_params["speed"] = config.tts_speed
+        elif config.tts_inference_mode == "vieneu":
+            if config.voice_id:
+                tts_params["voice"] = config.voice_id
+            if config.tts_speed is not None:
+                tts_params["speed"] = config.tts_speed
+            if config.ref_audio:
+                tts_params["ref_audio"] = config.ref_audio
         else:  # comfyui
             if config.tts_workflow:
                 tts_params["workflow"] = config.tts_workflow
