@@ -567,6 +567,23 @@
     "sbs.final.compose_btn": "🎬 合成最终视频",
     "sbs.final.composing": "正在拼接片段并添加背景音乐...",
     "sbs.final.download": "⬇️ 下载视频",
-    "sbs.final.new_project": "🆕 开始新项目"
+    "sbs.final.new_project": "🆕 开始新项目",
+    "sbs.setup.video_mode_label": "🎬 视频生成方式",
+    "sbs.setup.video_mode_t2v": "📝 文生视频",
+    "sbs.setup.video_mode_i2v": "🖼️ 图生视频（i2v）",
+    "sbs.setup.video_mode_help": "文生视频：直接根据提示词生成每个片段。图生视频：先生成一张静态图，再用支持 i2v 的模型让它动起来 —— 对每个分镜的画面更可控。",
+    "sbs.setup.i2v_unavailable": "ℹ️ 当前仅支持文生视频：未找到支持 i2v 的工作流。图生视频需要 workflows/<source>/ 下的 i2v_*.json 描述文件（如 wan2gp/i2v_wan2.2.json）—— 只有这类模型支持首帧图片输入。",
+    "sbs.setup.i2v_hint": "💡 此模式下先由下方的图像工作流生成静态图，再由 i2v 工作流将其动画化；上方视觉设置中选择的视频工作流将被忽略。",
+    "sbs.setup.i2v_workflow_label": "i2v 工作流（负责让图片动起来）",
+    "sbs.setup.i2v_image_workflow_label": "图像工作流（负责生成静态图）",
+    "sbs.setup.i2v_image_workflow_default": "（使用默认图像工作流）",
+    "sbs.scenes.image_start_btn": "🖼️ 生成图片",
+    "sbs.scenes.image_start_regen": "🔄 重新生成图片",
+    "sbs.scenes.animate_btn": "🎬 动画化",
+    "sbs.scenes.animate_regen": "🎬 重新动画化",
+    "sbs.scenes.need_image_first": "请先生成首帧图片",
+    "sbs.scenes.stage_image_start": "分镜 {current}：正在生成首帧图片...",
+    "sbs.scenes.stage_animate": "分镜 {current}：正在将图片动画化...",
+    "sbs.scenes.start_frame_caption": "🖼️ 首帧图片"
   }
 }

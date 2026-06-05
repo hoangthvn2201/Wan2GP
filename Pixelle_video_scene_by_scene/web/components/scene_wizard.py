@@ -135,6 +135,64 @@ def _render_stepper(step: int, project):
 # Step ① Setup
 # ============================================================================
 
+def _render_video_mode_section(engine: SceneBySceneEngine, style_params: dict) -> dict:
+    """
+    Video-generation mode selector — only for video templates.
+
+    Modes:
+      t2v: text → video with the style-config video workflow (default)
+      i2v: image → video — generate a still first, then animate it. Only
+           i2v-capable workflows (workflows/<source>/i2v_*.json) can take a
+           start image, so the option is gated on at least one being present.
+    """
+    frame_template = style_params.get("frame_template")
+    if engine.media_requirement(frame_template) != "video":
+        return {}
+
+    with st.container(border=True):
+        st.markdown(f"**{tr('sbs.setup.video_mode_label')}**")
+
+        i2v_workflows = engine.list_i2v_workflows()
+        if not i2v_workflows:
+            st.caption(tr("sbs.setup.i2v_unavailable"))
+            return {"media_mode": "t2v"}
+
+        mode = st.radio(
+            "video mode",
+            ["t2v", "i2v"],
+            horizontal=True,
+            format_func=lambda x: tr(f"sbs.setup.video_mode_{x}"),
+            label_visibility="collapsed",
+            help=tr("sbs.setup.video_mode_help"),
+            key="sbs_setup_video_mode",
+        )
+        if mode != "i2v":
+            return {"media_mode": "t2v"}
+
+        st.caption(tr("sbs.setup.i2v_hint"))
+
+        i2v_workflow = st.selectbox(
+            tr("sbs.setup.i2v_workflow_label"),
+            options=i2v_workflows,
+            key="sbs_setup_i2v_workflow",
+        )
+
+        # Image workflow for the start frame (default = config's image workflow)
+        image_workflows = engine.list_image_workflows()
+        default_label = tr("sbs.setup.i2v_image_workflow_default")
+        image_choice = st.selectbox(
+            tr("sbs.setup.i2v_image_workflow_label"),
+            options=[default_label] + image_workflows,
+            key="sbs_setup_i2v_image_workflow",
+        )
+
+        return {
+            "media_mode": "i2v",
+            "i2v_workflow": i2v_workflow,
+            "i2v_image_workflow": None if image_choice == default_label else image_choice,
+        }
+
+
 def _render_setup(engine: SceneBySceneEngine):
     pixelle_video = engine.core
     project = st.session_state.get(K_PROJECT)
@@ -206,6 +264,10 @@ def _render_setup(engine: SceneBySceneEngine):
     with right_col:
         style_params = render_style_config(pixelle_video)
 
+        # Video templates can additionally run in image→video (i2v) mode:
+        # generate a still first, then animate it with an i2v-capable model.
+        video_mode_params = _render_video_mode_section(engine, style_params)
+
     st.caption(tr("sbs.setup.params_frozen_hint"))
 
     # ---- Actions ----
@@ -235,6 +297,7 @@ def _render_setup(engine: SceneBySceneEngine):
                     "split_mode": split_mode,
                     "title": title.strip() or None,
                     **style_params,
+                    **video_mode_params,
                 }
                 _clear_project_widget_state()
                 st.session_state[K_PROJECT] = engine.create_project(
@@ -263,6 +326,19 @@ def _sync_text_widget(key: str, current_value: str, height: int = 80, label: str
     return st.text_area(label, key=key, height=height, label_visibility="collapsed")
 
 
+def _apply_narration_change(project, scene, value: str):
+    """
+    Narration changed -> audio is stale; video clips are length-synced to the
+    audio, so they go stale too (i2v keeps its still-valid start image).
+    """
+    scene.narration = value
+    scene.invalidate_audio()
+    if project.is_i2v:
+        scene.invalidate_video()
+    elif project.is_video_workflow:
+        scene.invalidate_media()
+
+
 def _render_script(engine: SceneBySceneEngine):
     project = st.session_state.get(K_PROJECT)
     if project is None:
@@ -286,8 +362,7 @@ def _render_script(engine: SceneBySceneEngine):
             key = f"sbs_narr_{scene.uid}"
             value = _sync_text_widget(key, scene.narration)
             if value != scene.narration:
-                scene.narration = value
-                scene.invalidate_audio()
+                _apply_narration_change(project, scene, value)
 
             c1, c2, _sp = st.columns([1, 1, 2])
             with c1:
@@ -299,8 +374,7 @@ def _render_script(engine: SceneBySceneEngine):
                                 scene.narration,
                                 topic=project.params.get("text"),
                             ))
-                        scene.narration = rewritten
-                        scene.invalidate_audio()
+                        _apply_narration_change(project, scene, rewritten)
                         _queue_override(key, rewritten)
                         st.rerun()
                     except Exception as e:
@@ -453,7 +527,11 @@ def _render_prompts(engine: SceneBySceneEngine):
 
 def _scene_status_icons(project, scene) -> str:
     parts = [f"🎤{'✅' if scene.audio_path else '⬜'}"]
-    if project.needs_media:
+    if project.is_i2v:
+        # image → video: the still and the animated clip are separate steps
+        parts.append(f"🖼️{'✅' if scene.image_path else '⬜'}")
+        parts.append(f"🎬{'✅' if scene.video_path else '⬜'}")
+    elif project.needs_media:
         media_icon = "🎬" if project.is_video_workflow else "🖼️"
         parts.append(f"{media_icon}{'✅' if scene.has_media else '⬜'}")
     parts.append(f"🎞️{'✅' if scene.segment_path else '⬜'}")
@@ -480,8 +558,7 @@ def _render_scene_card(engine: SceneBySceneEngine, project, scene, index: int):
                 st.session_state[nkey] = scene.narration
             nval = st.text_area("narration", key=nkey, height=80, label_visibility="collapsed")
             if nval != scene.narration:
-                scene.narration = nval
-                scene.invalidate_audio()
+                _apply_narration_change(project, scene, nval)
                 # Keep the Script-step widget in sync
                 _queue_override(f"sbs_narr_{scene.uid}", nval)
 
@@ -497,21 +574,50 @@ def _render_scene_card(engine: SceneBySceneEngine, project, scene, index: int):
                     _queue_override(f"sbs_prompt_{scene.uid}", pval)
 
             # ---- Action buttons ----
-            b1, b2, b3 = st.columns(3)
-            with b1:
+            def _run_step(spinner_key: str, coro_factory):
+                try:
+                    with st.spinner(tr(spinner_key, current=index + 1)):
+                        run_async(coro_factory())
+                    st.rerun()
+                except Exception as e:
+                    logger.exception(e)
+                    st.error(tr("sbs.common.error", error=str(e)))
+
+            cols = st.columns(4 if project.is_i2v else 3)
+
+            with cols[0]:
                 audio_label = tr("sbs.scenes.audio_regen") if scene.audio_path else tr("sbs.scenes.audio_btn")
                 if st.button(audio_label, key=f"sbs_a_{scene.uid}", use_container_width=True,
                              disabled=not scene.narration.strip()):
-                    try:
-                        with st.spinner(tr("sbs.scenes.stage_audio", current=index + 1)):
-                            run_async(engine.generate_audio(project, scene, index))
-                        st.rerun()
-                    except Exception as e:
-                        logger.exception(e)
-                        st.error(tr("sbs.common.error", error=str(e)))
+                    _run_step("sbs.scenes.stage_audio",
+                              lambda: engine.generate_audio(project, scene, index))
 
-            with b2:
-                if project.needs_media:
+            if project.is_i2v:
+                # i2v: start image → animate (two separate, regenerable steps)
+                with cols[1]:
+                    img_label = (tr("sbs.scenes.image_start_regen") if scene.image_path
+                                 else tr("sbs.scenes.image_start_btn"))
+                    if st.button(img_label, key=f"sbs_m_{scene.uid}", use_container_width=True,
+                                 disabled=not (scene.prompt or "").strip()):
+                        _run_step("sbs.scenes.stage_image_start",
+                                  lambda: engine.generate_start_image(project, scene, index))
+
+                with cols[2]:
+                    anim_label = (tr("sbs.scenes.animate_regen") if scene.video_path
+                                  else tr("sbs.scenes.animate_btn"))
+                    missing = []
+                    if not scene.image_path:
+                        missing.append(tr("sbs.scenes.need_image_first"))
+                    if not scene.audio_path:
+                        missing.append(tr("sbs.scenes.need_audio_first"))
+                    if st.button(anim_label, key=f"sbs_v_{scene.uid}", use_container_width=True,
+                                 disabled=bool(missing),
+                                 help=" / ".join(missing) if missing else None):
+                        _run_step("sbs.scenes.stage_animate",
+                                  lambda: engine.animate_image(project, scene, index))
+
+            elif project.needs_media:
+                with cols[1]:
                     media_label = (
                         tr("sbs.scenes.media_regen") if scene.has_media
                         else (tr("sbs.scenes.media_btn_video") if project.is_video_workflow
@@ -523,27 +629,17 @@ def _render_scene_card(engine: SceneBySceneEngine, project, scene, index: int):
                     help_text = tr("sbs.scenes.need_audio_first") if needs_audio_first else None
                     if st.button(media_label, key=f"sbs_m_{scene.uid}", use_container_width=True,
                                  disabled=disabled, help=help_text):
-                        try:
-                            with st.spinner(tr("sbs.scenes.stage_media", current=index + 1)):
-                                run_async(engine.generate_media(project, scene, index))
-                            st.rerun()
-                        except Exception as e:
-                            logger.exception(e)
-                            st.error(tr("sbs.common.error", error=str(e)))
+                        _run_step("sbs.scenes.stage_media",
+                                  lambda: engine.generate_media(project, scene, index))
 
-            with b3:
+            with cols[-1]:
                 seg_label = tr("sbs.scenes.segment_regen") if scene.segment_path else tr("sbs.scenes.segment_btn")
-                seg_ready = scene.audio_path and (not project.needs_media or scene.has_media)
+                seg_ready = scene.audio_path and project.scene_media_ready(scene)
                 if st.button(seg_label, key=f"sbs_s_{scene.uid}", use_container_width=True,
                              disabled=not seg_ready,
                              help=None if seg_ready else tr("sbs.scenes.segment_requirements")):
-                    try:
-                        with st.spinner(tr("sbs.scenes.stage_segment", current=index + 1)):
-                            run_async(engine.render_segment(project, scene, index))
-                        st.rerun()
-                    except Exception as e:
-                        logger.exception(e)
-                        st.error(tr("sbs.common.error", error=str(e)))
+                    _run_step("sbs.scenes.stage_segment",
+                              lambda: engine.render_segment(project, scene, index))
 
         # ---- Previews (bytes-based so regenerated files refresh properly) ----
         with preview_col:
@@ -551,7 +647,20 @@ def _render_scene_card(engine: SceneBySceneEngine, project, scene, index: int):
             if audio_bytes:
                 st.audio(audio_bytes, format="audio/mp3")
 
-            if scene.media_type == "video":
+            if project.is_i2v:
+                # Show both the start frame and the animated clip
+                video_bytes = _read_bytes(scene.video_path)
+                if video_bytes:
+                    st.video(video_bytes)
+                image_bytes = _read_bytes(scene.image_path)
+                if image_bytes:
+                    if video_bytes:
+                        with st.expander(tr("sbs.scenes.start_frame_caption"), expanded=False):
+                            st.image(image_bytes, use_container_width=True)
+                    else:
+                        st.caption(tr("sbs.scenes.start_frame_caption"))
+                        st.image(image_bytes, use_container_width=True)
+            elif scene.media_type == "video":
                 video_bytes = _read_bytes(scene.video_path)
                 if video_bytes:
                     st.video(video_bytes)

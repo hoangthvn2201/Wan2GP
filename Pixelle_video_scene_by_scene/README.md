@@ -13,9 +13,23 @@ reviews and controls the input/output of **every stage and every scene**:
 ⑤ Final     pick BGM → compose → preview → ⬇️ download
 ```
 
+For video templates there are two generation modes (chosen in ① Setup):
+
+- **📝 Text → Video (t2v)** — each clip is generated directly from the prompt
+  with the video workflow selected in the visual settings.
+- **🖼️ Image → Video (i2v)** — a still image is generated first (image
+  workflow), previewed/regenerable per scene, then **animated from that start
+  frame** by an i2v-capable model, with the clip length synced to the
+  narration audio. Per scene: 🎤 audio → 🖼️ image → 🎬 animate → 🎞️ segment.
+  Only workflows named `i2v_*.json` accept a start image (e.g.
+  `wan2gp/i2v_wan2.2.json`, `runninghub/i2v_LTX2.json`); the mode is offered
+  only when at least one is installed.
+
 Edits automatically invalidate only the affected downstream assets of that
-scene (e.g. changing a narration invalidates its audio + segment; changing a
-prompt invalidates its media + segment).
+scene (e.g. changing a narration invalidates its audio + segment — and any
+length-synced video clip; changing a prompt invalidates its media + segment;
+in i2v mode regenerating the start image invalidates the animation but
+changing only the narration keeps the still and re-animates).
 
 ## Relationship with `../Pixelle_video`
 

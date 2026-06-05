@@ -52,8 +52,11 @@ from Pixelle_video.pixelle_video.utils.content_generators import (
 )
 from Pixelle_video.pixelle_video.utils.os_util import (
     create_task_output_dir,
+    get_resource_path,
     get_task_final_video_path,
     get_task_path,
+    list_resource_dirs,
+    list_resource_files,
 )
 from Pixelle_video.pixelle_video.utils.prompt_helper import build_image_prompt
 from Pixelle_video.pixelle_video.utils.template_util import (
@@ -158,6 +161,37 @@ class SceneBySceneEngine:
         """'static' | 'image' | 'video' from the template naming convention."""
         return get_template_type(Path(frame_template or "1080x1920/default.html").name)
 
+    # ==================== Workflow capabilities ====================
+
+    @staticmethod
+    def list_i2v_workflows() -> List[str]:
+        """
+        Workflows that can animate a start image (image → video).
+
+        Only `i2v_*.json` workflow files support a start image — regular
+        `video_*` (t2v) workflows cannot take one. Honors `data/workflows/`
+        overrides, like all other resources.
+
+        Returns keys like "wan2gp/i2v_wan2.2.json".
+        """
+        keys = []
+        try:
+            for source in list_resource_dirs("workflows"):
+                for fname in list_resource_files("workflows", source):
+                    if fname.startswith("i2v_") and fname.endswith(".json"):
+                        keys.append(f"{source}/{fname}")
+        except Exception as e:
+            logger.warning(f"Failed to scan i2v workflows: {e}")
+        return sorted(keys)
+
+    def list_image_workflows(self) -> List[str]:
+        """Image workflows usable for the i2v start frame (keys like "wan2gp/image_qwen.json")."""
+        try:
+            return [k for k in self.core.media.available if Path(k).name.startswith("image_")]
+        except Exception as e:
+            logger.warning(f"Failed to scan image workflows: {e}")
+            return []
+
     async def generate_prompts(
         self,
         narrations: List[str],
@@ -249,6 +283,22 @@ class SceneBySceneEngine:
             for narration, prompt in zip(narrations, prompts)
         ]
 
+        # --- Media mode -----------------------------------------------------
+        # static template -> 'none'; image template -> 'image';
+        # video template  -> 't2v' (default) or 'i2v' if the user opted in AND
+        # an i2v-capable workflow is selected (workflows/<source>/i2v_*.json).
+        media_requirement = self.media_requirement(frame_template)
+        media_mode = params.get("media_mode")
+        if media_requirement == "static":
+            media_mode = "none"
+        elif media_requirement == "image":
+            media_mode = "image"
+        elif media_mode != "i2v":
+            media_mode = "t2v"
+        if media_mode == "i2v" and not params.get("i2v_workflow"):
+            raise ValueError("media_mode='i2v' requires an 'i2v_workflow' param "
+                             "(an i2v_*.json workflow descriptor)")
+
         return SceneProject(
             title=title,
             task_id=task_id,
@@ -256,7 +306,8 @@ class SceneBySceneEngine:
             config=config,
             params=dict(params),
             scenes=scenes,
-            media_requirement=self.media_requirement(frame_template),
+            media_requirement=media_requirement,
+            media_mode=media_mode,
         )
 
     # ==================== Per-scene steps ====================
@@ -349,6 +400,113 @@ class SceneBySceneEngine:
         scene.segment_path = None
         return scene
 
+    # -------------------- Image → Video (i2v) mode --------------------
+
+    async def generate_start_image(self, project: SceneProject, scene: Scene, index: int) -> Scene:
+        """
+        i2v step A: generate the still that will seed the video.
+
+        Uses the image workflow chosen for the project (params['i2v_image_workflow'],
+        falling back to the configured default image workflow).
+        """
+        config = project.config
+        media_params = {
+            "prompt": scene.prompt,
+            "workflow": project.params.get("i2v_image_workflow"),  # None -> config default
+            "media_type": "image",
+            "width": config.media_width,
+            "height": config.media_height,
+            "index": index + 1,
+        }
+
+        media_result = await self.core.media(**media_params)
+        if not media_result.is_image:
+            raise ValueError(f"Start-image workflow returned {media_result.media_type}, expected image")
+
+        local_path = await self._fetch_media(
+            media_result.url, self.scene_asset_path(project, scene, "image")
+        )
+        scene.image_path = local_path
+        scene.media_type = "image"
+        # New start image -> old animation + segment no longer match
+        scene.video_path = None
+        scene.invalidate_segment()
+        logger.info(f"🖼️ Scene {index + 1} start image ready: {local_path}")
+        return scene
+
+    async def animate_image(self, project: SceneProject, scene: Scene, index: int) -> Scene:
+        """
+        i2v step B: animate the start image into a video clip whose length is
+        synced to the narration audio.
+
+        Only i2v-capable workflows (workflows/<source>/i2v_*.json) accept a
+        start image; executes them directly (mirrors the original i2v pipeline):
+        wan2gp descriptors run in-process, ComfyUI ones via ComfyKit.
+        """
+        import json as _json
+
+        if not scene.image_path:
+            raise RuntimeError("Generate the start image first (scene has no image)")
+        if not scene.duration:
+            raise RuntimeError("Generate the audio first (the clip length is synced to it)")
+
+        workflow_key = project.params.get("i2v_workflow")
+        if not workflow_key:
+            raise ValueError("No i2v workflow configured for this project")
+        source, _, fname = workflow_key.partition("/")
+        workflow_path = get_resource_path("workflows", source, fname)
+
+        with open(workflow_path, "r", encoding="utf-8") as f:
+            descriptor = _json.load(f)
+
+        config = project.config
+        output_path = self.scene_asset_path(project, scene, "video")
+
+        if descriptor.get("source") == "wan2gp":
+            # In-process WanGP generation (duration snapped via descriptor fps/frame_quant)
+            from Pixelle_video.pixelle_video.services.wan2gp_client import get_wan2gp_client
+
+            client = get_wan2gp_client()
+            generated = await client.generate(
+                descriptor,
+                scene.prompt,
+                media_type="video",
+                width=config.media_width,
+                height=config.media_height,
+                duration=scene.duration,
+                image_start=scene.image_path,
+            )
+            local_path = await self._fetch_media(generated, output_path)
+        else:
+            # ComfyUI workflow (selfhost / runninghub) via ComfyKit
+            kit = await self.core._get_or_create_comfykit()
+            if descriptor.get("source") == "runninghub" and "workflow_id" in descriptor:
+                workflow_input = descriptor["workflow_id"]
+            else:
+                workflow_input = str(workflow_path)
+
+            workflow_params = {
+                "image": scene.image_path,
+                "prompt": scene.prompt,
+                "duration": scene.duration,
+            }
+            result = await kit.execute(workflow_input, workflow_params)
+            if result.status != "completed":
+                raise Exception(f"i2v generation failed: {result.msg or 'Unknown error'}")
+            if not result.videos:
+                raise Exception("i2v workflow returned no video")
+            local_path = await self._fetch_media(result.videos[0], output_path)
+
+        scene.video_path = local_path
+        scene.media_type = "video"
+        scene.invalidate_segment()
+        # Keep the narration-driven duration unless the clip differs meaningfully
+        clip_duration = await self._get_video_duration(local_path)
+        if clip_duration > 1.0:
+            scene.duration = clip_duration
+        logger.info(f"🎬 Scene {index + 1} animated ({scene.duration:.2f}s): {local_path}")
+        return scene
+
     async def render_segment(self, project: SceneProject, scene: Scene, index: int) -> Scene:
         """
         Render the subtitled HTML frame and build the per-scene video segment
@@ -417,15 +575,30 @@ class SceneBySceneEngine:
         index: int,
         progress_callback: Optional[Callable[[str], None]] = None,
     ) -> Scene:
-        """Run all missing steps for one scene (audio -> media -> segment)."""
+        """
+        Run all missing steps for one scene:
+            audio -> media -> segment                    (image / t2v modes)
+            audio -> start image -> animate -> segment   (i2v mode)
+        """
         if not scene.audio_path:
             if progress_callback:
                 progress_callback("audio")
             await self.generate_audio(project, scene, index)
-        if project.needs_media and scene.prompt and not scene.has_media:
+
+        if project.is_i2v and scene.prompt:
+            if not scene.image_path:
+                if progress_callback:
+                    progress_callback("image_start")
+                await self.generate_start_image(project, scene, index)
+            if not scene.video_path:
+                if progress_callback:
+                    progress_callback("animate")
+                await self.animate_image(project, scene, index)
+        elif project.needs_media and scene.prompt and not scene.has_media:
             if progress_callback:
                 progress_callback("media")
             await self.generate_media(project, scene, index)
+
         if not scene.segment_path:
             if progress_callback:
                 progress_callback("segment")

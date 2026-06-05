@@ -65,6 +65,17 @@ class Scene:
         self.media_type = None
         self.invalidate_segment()
 
+    def invalidate_video(self):
+        """
+        The animated clip is stale (e.g. narration audio changed, so the clip
+        length no longer matches) but the start image is still valid.
+        Used by the image→video (i2v) mode.
+        """
+        self.video_path = None
+        if self.media_type == "video":
+            self.media_type = "image" if self.image_path else None
+        self.invalidate_segment()
+
     def invalidate_segment(self):
         """Audio or media changed -> rendered frame + segment are stale."""
         self.composed_path = None
@@ -88,6 +99,14 @@ class SceneProject:
     # 'static' | 'image' | 'video' — derived from the frame template
     media_requirement: str = "image"
 
+    # How scene media is produced:
+    #   'none'  – static template, no media
+    #   'image' – one still image per scene (image template)
+    #   't2v'   – text → video with the style-config video workflow
+    #   'i2v'   – image → video: a still is generated first, then animated by
+    #             an i2v-capable workflow (workflows/<source>/i2v_*.json)
+    media_mode: str = "image"
+
     final_video_path: Optional[str] = None
     total_duration: float = 0.0
     created_at: datetime = field(default_factory=datetime.now)
@@ -97,9 +116,27 @@ class SceneProject:
         return self.media_requirement in ("image", "video")
 
     @property
+    def is_i2v(self) -> bool:
+        return self.media_mode == "i2v"
+
+    @property
     def is_video_workflow(self) -> bool:
+        """Scene media ends up as a video clip (t2v or i2v)."""
+        if self.media_mode in ("t2v", "i2v"):
+            return True
+        if self.media_mode in ("none", "image"):
+            return False
+        # Fallback for projects created before media_mode existed
         workflow_name = self.config.media_workflow or ""
         return "video_" in workflow_name.lower()
+
+    def scene_media_ready(self, scene: "Scene") -> bool:
+        """Is this scene's media complete for segment rendering?"""
+        if not self.needs_media:
+            return True
+        if self.is_video_workflow:
+            return scene.video_path is not None
+        return scene.image_path is not None
 
     @property
     def all_segments_ready(self) -> bool:
