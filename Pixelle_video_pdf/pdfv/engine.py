@@ -31,6 +31,7 @@ the scriptwriter consumes.
 """
 
 import json
+import os
 from datetime import datetime
 from typing import Callable, List, Optional, Tuple
 
@@ -347,6 +348,69 @@ class PdfVideoEngine(SceneBySceneEngine):
             max_words=max_words,
         )
         return prompts[0]
+
+    # ==================== Audio loudness ====================
+
+    async def generate_audio(self, project, scene, index: int):
+        """
+        TTS for one scene, then bring the narration up to a healthy loudness.
+
+        TTS output (edge-tts, VieNeu, ...) is often noticeably quiet and none
+        of the TTS backends expose a working volume control through the core,
+        so the loudness is fixed here on the generated mp3 instead:
+
+        - ``tts_normalize`` (default True): EBU R128 loudness normalization to
+          -16 LUFS — the usual target for short-video voiceovers. This is what
+          actually fixes "the TTS is too quiet", independent of voice/backend.
+        - ``tts_volume`` (default 1.0): extra linear gain applied on top
+          (e.g. 1.5 = +50%), guarded by a limiter against clipping.
+
+        Both come from ``project.params``.
+        """
+        scene = await super().generate_audio(project, scene, index)
+
+        gain = float(project.params.get("tts_volume") or 1.0)
+        normalize = bool(project.params.get("tts_normalize", True))
+        if normalize or gain != 1.0:
+            self._boost_narration_audio(scene.audio_path, gain=gain, normalize=normalize)
+            # Re-probe: filtering re-encodes the file (duration drives clip length)
+            scene.duration = await self._get_audio_duration(scene.audio_path)
+        return scene
+
+    @staticmethod
+    def _boost_narration_audio(audio_path: str, gain: float = 1.0, normalize: bool = True):
+        """Loudness-normalize / amplify a narration file in place (best effort)."""
+        import ffmpeg
+
+        filters = []
+        if normalize:
+            # Single-pass loudnorm: raises quiet speech to -16 LUFS with a
+            # -1.5 dBTP true-peak ceiling (no clipping)
+            filters.append("loudnorm=I=-16:TP=-1.5:LRA=11")
+        if gain and gain != 1.0:
+            filters.append(f"volume={gain}")
+            if gain > 1.0:
+                filters.append("alimiter=limit=0.97")  # guard the extra gain against clipping
+        if not filters:
+            return
+
+        tmp_path = audio_path + ".boost.mp3"
+        try:
+            (
+                ffmpeg.input(audio_path)
+                # ar=48000: loudnorm upsamples to 192 kHz internally, which the
+                # mp3 encoder can't take — resample back down explicitly
+                .output(tmp_path, af=",".join(filters), **{"b:a": "192k", "ar": "48000"})
+                .overwrite_output()
+                .run(quiet=True)
+            )
+            os.replace(tmp_path, audio_path)
+            logger.info(f"🔊 Narration loudness adjusted (normalize={normalize}, gain={gain}): {audio_path}")
+        except Exception as e:
+            # A boost failure must never lose the narration itself
+            logger.warning(f"Narration loudness boost failed, keeping the original audio: {e}")
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
 
     # ==================== Persistence (history label + PDF info) ====================
 

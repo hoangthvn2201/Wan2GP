@@ -127,6 +127,14 @@ Uploaded PDFs are kept under `Pixelle_video/output/uploads/`.
   escalating budget (script: 8k → 16k → 24k tokens), which recovers this
   automatically — but a non-reasoning model (e.g. `deepseek-chat`) makes the
   pipeline far faster.
+- **Narration loudness**: TTS output is often quiet and none of the TTS
+  backends expose a volume control through the core, so the engine fixes it
+  post-TTS on the generated mp3: `tts_normalize` (default on) loudness-
+  normalizes to -16 LUFS — the short-video voiceover standard — and
+  `tts_volume` adds clip-guarded extra gain on top (e.g. `1.5` = +50%).
+  Both are project params (notebook step 6/13, web UI "🔊 Narration
+  loudness"). Lowering `BGM_VOLUME` at compose time is the complementary
+  lever.
 - Narration edits via `engine.rewrite_narration(...)` and per-scene
   regeneration work exactly as in the scene-by-scene app.
 - Tasks are persisted with `pipeline: "pdf_to_video"`, so they are easy to

@@ -640,6 +640,11 @@
     "pdfw.script.hint": "Edit any narration directly, use AI rewrite per scene, add or remove scenes. Every fact comes from the digest — fix the digest if a fact is wrong.",
     "pdfw.prompts.hint": "Each scene gets an English media prompt living inside the digest's visual world (style prefix already applied). Edit freely or regenerate.",
     "pdfw.prompts.visual_world_caption": "🌍 Visual world: {world}",
-    "pdfw.final.new_document": "🆕 Start New Document"
+    "pdfw.final.new_document": "🆕 Start New Document",
+    "pdfw.setup.audio_label": "🔊 Narration loudness",
+    "pdfw.setup.tts_normalize_label": "Normalize loudness (-16 LUFS)",
+    "pdfw.setup.tts_normalize_help": "Brings the TTS voiceover up to the standard short-video loudness, whatever voice/backend is used. Fixes quiet narration — leave on unless you have a reason not to.",
+    "pdfw.setup.tts_volume_label": "Extra volume gain",
+    "pdfw.setup.tts_volume_help": "Linear gain applied on top (1.0 = unchanged, 1.5 = +50%). A limiter prevents clipping. Usually unnecessary when normalization is on."
   }
 }

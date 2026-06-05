@@ -307,6 +307,22 @@ def _render_setup(engine: PdfVideoEngine):
                 key="pdfw_setup_language",
             )
 
+        # ---- Narration loudness (TTS output is often quiet; fixed post-TTS) ----
+        with st.container(border=True):
+            st.markdown(f"**{tr('pdfw.setup.audio_label')}**")
+            tts_normalize = st.toggle(
+                tr("pdfw.setup.tts_normalize_label"),
+                value=True,
+                help=tr("pdfw.setup.tts_normalize_help"),
+                key="pdfw_setup_tts_normalize",
+            )
+            tts_volume = st.slider(
+                tr("pdfw.setup.tts_volume_label"),
+                min_value=0.5, max_value=3.0, value=1.0, step=0.1,
+                help=tr("pdfw.setup.tts_volume_help"),
+                key="pdfw_setup_tts_volume",
+            )
+
     # ---- Style configuration (reused component: TTS / template / workflow) ----
     with right_col:
         style_params = render_style_config(pixelle_video)
@@ -359,6 +375,8 @@ def _render_setup(engine: PdfVideoEngine):
                     "video_mode_params": video_mode_params,
                     "pdf_path": pdf_path,
                     "page_range": page_range,
+                    "tts_volume": tts_volume,
+                    "tts_normalize": tts_normalize,
                 }
                 st.session_state[K_DOC] = doc
                 st.session_state[K_DIGEST] = digest
@@ -522,6 +540,9 @@ def _render_digest(engine: PdfVideoEngine):
                     "title": title,
                     **(setup.get("style_params") or {}),
                     **(setup.get("video_mode_params") or {}),
+                    # --- Narration loudness (applied post-TTS by the engine) ---
+                    "tts_volume": setup.get("tts_volume", 1.0),
+                    "tts_normalize": setup.get("tts_normalize", True),
                     # --- PDF provenance (persisted with the task) ---
                     "pdf_source": doc.path,
                     "pdf_pages": list(doc.page_range),

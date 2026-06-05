@@ -640,6 +640,11 @@
     "pdfw.script.hint": "可直接编辑任意解说词、对单个分镜使用 AI 改写、增删分镜。所有事实均来自文档解读 —— 如有错误请先修正解读。",
     "pdfw.prompts.hint": "每个分镜会得到一条英文画面提示词，统一生活在解读的\"视觉世界\"中（风格前缀已应用）。可自由编辑或重新生成。",
     "pdfw.prompts.visual_world_caption": "🌍 视觉世界：{world}",
-    "pdfw.final.new_document": "🆕 开始新文档"
+    "pdfw.final.new_document": "🆕 开始新文档",
+    "pdfw.setup.audio_label": "🔊 解说音量",
+    "pdfw.setup.tts_normalize_label": "响度标准化（-16 LUFS）",
+    "pdfw.setup.tts_normalize_help": "将 TTS 配音提升到短视频标准响度，与所用音色/后端无关。可解决解说声音过小的问题 —— 建议保持开启。",
+    "pdfw.setup.tts_volume_label": "额外增益",
+    "pdfw.setup.tts_volume_help": "在标准化之后再叠加的线性增益（1.0 = 不变，1.5 = +50%）。带限幅器防止破音。开启标准化时通常无需调整。"
   }
 }
