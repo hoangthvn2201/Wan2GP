@@ -349,6 +349,10 @@ class SceneBySceneEngine:
         # Audio changed -> previously rendered segment no longer matches
         scene.composed_path = None
         scene.segment_path = None
+        # Video clips are length-synced to the audio: a (re)generated narration
+        # invalidates any existing clip (the i2v start image stays valid).
+        if project.is_video_workflow and scene.video_path:
+            scene.invalidate_video()
         logger.info(f"🎤 Scene {index + 1} audio ready ({scene.duration:.2f}s): {audio_path}")
         return scene
 

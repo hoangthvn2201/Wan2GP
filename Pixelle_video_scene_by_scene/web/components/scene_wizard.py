@@ -326,6 +326,19 @@ def _sync_text_widget(key: str, current_value: str, height: int = 80, label: str
     return st.text_area(label, key=key, height=height, label_visibility="collapsed")
 
 
+def _texts_differ(a: str, b: str) -> bool:
+    """
+    True only on a REAL content change.
+
+    The browser can return a text_area value that differs from the model only
+    in line endings / leading-trailing whitespace (sent along with ANY button
+    click). Treating that as an edit used to invalidate generated assets —
+    e.g. the i2v start image got wiped when the audio button was clicked.
+    """
+    norm = lambda s: (s or "").replace("\r\n", "\n").replace("\r", "\n").strip()
+    return norm(a) != norm(b)
+
+
 def _apply_narration_change(project, scene, value: str):
     """
     Narration changed -> audio is stale; video clips are length-synced to the
@@ -361,7 +374,7 @@ def _render_script(engine: SceneBySceneEngine):
 
             key = f"sbs_narr_{scene.uid}"
             value = _sync_text_widget(key, scene.narration)
-            if value != scene.narration:
+            if _texts_differ(value, scene.narration):
                 _apply_narration_change(project, scene, value)
 
             c1, c2, _sp = st.columns([1, 1, 2])
@@ -533,9 +546,11 @@ def _render_prompts(engine: SceneBySceneEngine):
 
             key = f"sbs_prompt_{scene.uid}"
             value = _sync_text_widget(key, scene.prompt or "", height=100, label="prompt")
-            if value != scene.prompt:
+            if _texts_differ(value, scene.prompt):
                 scene.prompt = value
                 scene.invalidate_media()
+                # Keep the Scenes-step widget in sync
+                _queue_override(f"sbs_scene_prompt_{scene.uid}", value)
 
             if st.button(tr("sbs.prompts.regen_one"), key=f"sbs_rp_{scene.uid}"):
                 try:
@@ -620,7 +635,7 @@ def _render_scene_card(engine: SceneBySceneEngine, project, scene, index: int):
             if nkey not in st.session_state:
                 st.session_state[nkey] = scene.narration
             nval = st.text_area("narration", key=nkey, height=80, label_visibility="collapsed")
-            if nval != scene.narration:
+            if _texts_differ(nval, scene.narration):
                 _apply_narration_change(project, scene, nval)
                 # Keep the Script-step widget in sync
                 _queue_override(f"sbs_narr_{scene.uid}", nval)
@@ -631,7 +646,7 @@ def _render_scene_card(engine: SceneBySceneEngine, project, scene, index: int):
                 if pkey not in st.session_state:
                     st.session_state[pkey] = scene.prompt or ""
                 pval = st.text_area("prompt", key=pkey, height=100, label_visibility="collapsed")
-                if pval != (scene.prompt or ""):
+                if _texts_differ(pval, scene.prompt):
                     scene.prompt = pval
                     scene.invalidate_media()
                     _queue_override(f"sbs_prompt_{scene.uid}", pval)
@@ -656,12 +671,17 @@ def _render_scene_card(engine: SceneBySceneEngine, project, scene, index: int):
                               lambda: engine.generate_audio(project, scene, index))
 
             if project.is_i2v:
-                # i2v: start image → animate (two separate, regenerable steps)
+                # i2v: strict order — audio → start image → animate.
+                # (The audio comes first so the whole chain flows one way and the
+                # clip length is always synced to the narration.)
                 with cols[1]:
                     img_label = (tr("sbs.scenes.image_start_regen") if scene.image_path
                                  else tr("sbs.scenes.image_start_btn"))
+                    img_needs_audio = not scene.audio_path
+                    img_disabled = img_needs_audio or not (scene.prompt or "").strip()
                     if st.button(img_label, key=f"sbs_m_{scene.uid}", use_container_width=True,
-                                 disabled=not (scene.prompt or "").strip()):
+                                 disabled=img_disabled,
+                                 help=tr("sbs.scenes.need_audio_first") if img_needs_audio else None):
                         _run_step("sbs.scenes.stage_image_start",
                                   lambda: engine.generate_start_image(project, scene, index))
 
