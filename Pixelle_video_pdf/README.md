@@ -59,6 +59,9 @@ here too.
   - `pdfv/prompts.py` — the four new LLM prompts (chunk notes, digest,
     grounded script, visual-world prompts)
   - `pdfv/engine.py` — `PdfVideoEngine`
+  - `web/` — the Streamlit wizard UI (only `pdf_wizard.py` and the two
+    Setup/Digest steps are new; the other components are copies of the
+    scene-by-scene ones: settings, style config, header, i18n, History page)
 
 ## Usage
 
@@ -95,6 +98,24 @@ The recommended entry point is the Colab notebook at the repo root:
 [`../pixelle_video_pdf_wan2gp.ipynb`](../pixelle_video_pdf_wan2gp.ipynb) —
 it installs everything, lets you review/edit the digest, script and prompts
 between stages, and previews every asset inline.
+
+### Web UI
+
+The same flow as a 6-step Streamlit wizard
+(**Setup/PDF upload → Digest → Script → Prompts → Scenes → Final**):
+
+```bash
+conda activate wan2gp
+cd Pixelle_video_pdf
+./start_web.sh            # serves on port 8503 (original app: 8501, scene-by-scene: 8502)
+```
+
+All three apps can run at the same time — they are separate Streamlit
+processes sharing the same config / output. The Digest step is the
+PDF-specific review surface: edit the core message, the visual world, the
+tone, and drop/reword individual key insights (each shows its ⚓ grounding —
+the document evidence the script will use) before any script is written.
+Uploaded PDFs are kept under `Pixelle_video/output/uploads/`.
 
 ## Notes
 
