@@ -584,6 +584,9 @@
     "sbs.scenes.need_image_first": "Generate the start image first",
     "sbs.scenes.stage_image_start": "Scene {current}: generating start image...",
     "sbs.scenes.stage_animate": "Scene {current}: animating start image...",
-    "sbs.scenes.start_frame_caption": "🖼️ Start frame"
+    "sbs.scenes.start_frame_caption": "🖼️ Start frame",
+    "sbs.prompts.use_prefix": "✨ Apply style prefix",
+    "sbs.prompts.use_prefix_help": "When on, the style prefix from the visual settings is prepended to every media prompt (and used for regeneration). Toggling rewrites the prompts below instantly — no AI call.",
+    "sbs.prompts.prefix_preview": "Style prefix: `{prefix}`"
   }
 }

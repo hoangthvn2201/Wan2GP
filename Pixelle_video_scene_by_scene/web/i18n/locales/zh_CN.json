@@ -584,6 +584,9 @@
     "sbs.scenes.need_image_first": "请先生成首帧图片",
     "sbs.scenes.stage_image_start": "分镜 {current}：正在生成首帧图片...",
     "sbs.scenes.stage_animate": "分镜 {current}：正在将图片动画化...",
-    "sbs.scenes.start_frame_caption": "🖼️ 首帧图片"
+    "sbs.scenes.start_frame_caption": "🖼️ 首帧图片",
+    "sbs.prompts.use_prefix": "✨ 应用风格前缀",
+    "sbs.prompts.use_prefix_help": "开启时，视觉设置中的风格前缀会自动加在每条画面提示词前面（重新生成时也会使用）。切换会立即改写下方提示词，不调用 AI。",
+    "sbs.prompts.prefix_preview": "风格前缀：`{prefix}`"
   }
 }

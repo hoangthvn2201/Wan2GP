@@ -430,6 +430,68 @@ def _render_script(engine: SceneBySceneEngine):
 # Step ③ Prompts
 # ============================================================================
 
+def _effective_prefix(project) -> str:
+    """The style prefix to use for prompt generation ('' when toggled off)."""
+    if not project.params.get("use_prompt_prefix", True):
+        return ""
+    return project.params.get("prompt_prefix") or ""
+
+
+def _strip_prompt_prefix(prompt: str, prefix: str) -> str:
+    """Inverse of build_image_prompt: remove a leading 'prefix, ' / bare prefix."""
+    prompt = (prompt or "").strip()
+    prefix = (prefix or "").strip()
+    if not prefix:
+        return prompt
+    if prompt == prefix:
+        return ""
+    if prompt.startswith(prefix + ", "):
+        return prompt[len(prefix) + 2:]
+    return prompt
+
+
+def _render_prefix_toggle(project):
+    """
+    Toggle: apply the style prefix to the media prompts or not.
+
+    Flipping it rewrites the existing prompts in place (no LLM call): the
+    prefix is prepended / stripped deterministically, and the affected scenes'
+    media is invalidated since the effective prompt changed.
+    """
+    prefix_text = (project.params.get("prompt_prefix") or "").strip()
+    if not prefix_text:
+        return  # nothing to toggle
+
+    from pixelle_video.utils.prompt_helper import build_image_prompt
+
+    enabled = st.toggle(
+        tr("sbs.prompts.use_prefix"),
+        value=project.params.get("use_prompt_prefix", True),
+        key="sbs_use_prefix",
+        help=tr("sbs.prompts.use_prefix_help"),
+    )
+    st.caption(tr("sbs.prompts.prefix_preview", prefix=prefix_text))
+
+    previous = project.params.get("use_prompt_prefix", True)
+    if enabled == previous:
+        return
+
+    project.params["use_prompt_prefix"] = enabled
+    for scene in project.scenes:
+        if not scene.prompt:
+            continue
+        if enabled:
+            new_prompt = build_image_prompt(_strip_prompt_prefix(scene.prompt, prefix_text), prefix_text)
+        else:
+            new_prompt = _strip_prompt_prefix(scene.prompt, prefix_text)
+        if new_prompt != scene.prompt:
+            scene.prompt = new_prompt
+            scene.invalidate_media()
+            _queue_override(f"sbs_prompt_{scene.uid}", new_prompt)
+            _queue_override(f"sbs_scene_prompt_{scene.uid}", new_prompt)
+    st.rerun()
+
+
 def _render_prompts(engine: SceneBySceneEngine):
     project = st.session_state.get(K_PROJECT)
     if project is None:
@@ -440,7 +502,8 @@ def _render_prompts(engine: SceneBySceneEngine):
     st.markdown(f"#### {tr('sbs.prompts.heading')}")
     st.caption(tr("sbs.prompts.hint"))
 
-    prompt_prefix = project.params.get("prompt_prefix") or ""
+    _render_prefix_toggle(project)
+    prompt_prefix = _effective_prefix(project)
 
     # ---- Auto-generate missing prompts on entry ----
     missing = [s for s in project.scenes if not s.prompt]
