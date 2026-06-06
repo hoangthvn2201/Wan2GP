@@ -664,6 +664,10 @@
     "flxw.final.new_project": "🆕 开始新项目",
     "flxw.setup.search_only_label": "🔒 仅用素材（从不生成）",
     "flxw.setup.search_only_help": "所有场景均使用真实素材：AI 为每个场景规划搜索关键词，搜索无结果时会改用更宽泛的关键词重试，而不会回退到 AI 生成。全程不加载任何生成模型 —— 视频只需 TTS + ffmpeg（无需 GPU）。",
-    "flxw.plan.search_only_info": "🔒 仅素材项目 —— 每个场景都规划为素材搜索；搜索无结果时改用更宽泛的关键词重试，绝不回退到 AI 生成。"
+    "flxw.plan.search_only_info": "🔒 仅素材项目 —— 每个场景都规划为素材搜索；搜索无结果时改用更宽泛的关键词重试，绝不回退到 AI 生成。",
+    "flxw.setup.resume_saved_info": "💾 发现未完成的项目：「{title}」—— {ready}/{total} 个场景已就绪（保存于 {saved}）。可直接恢复，无需重新开始（例如隧道/浏览器会话断开之后）。",
+    "flxw.setup.resume_saved_btn": "💾 恢复已保存的项目",
+    "flxw.scenes.genall_running": "⚡ 生成中… {ready}/{total} 个片段已就绪 —— 正在处理场景 {current}。每轮处理一个场景；每完成一个场景即写入磁盘存档。",
+    "flxw.scenes.genall_stop": "⏹ 当前场景完成后停止"
   }
 }

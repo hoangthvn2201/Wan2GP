@@ -44,6 +44,7 @@ from web.components.style_config import render_style_config
 from pixelle_video.config import config_manager
 
 from flexvid import FlexibleVideoEngine, FlexScene, load_flex_config
+from flexvid.project_io import find_latest_saved_project, load_project, save_project
 
 # Session-state keys
 K_STEP = "flxw_step"
@@ -51,6 +52,7 @@ K_PROJECT = "flxw_project"
 K_RESULT = "flxw_result"
 K_OVERRIDES = "flxw_widget_overrides"
 K_SETUP = "flxw_setup_params"   # frozen setup params (topic, style, language, ...)
+K_GENALL = "flxw_genall"        # "Generate All" runs one scene per rerun while set
 
 STEPS = ["setup", "script", "plan", "source", "scenes", "final"]
 STEP_ICONS = ["🧠", "📝", "🧭", "🛒", "🎬", "🏁"]
@@ -96,7 +98,7 @@ def _clear_project_widget_state():
 def _reset_wizard():
     """Start a brand-new project (keeps the setup form values)."""
     _clear_project_widget_state()
-    for key in (K_PROJECT, K_SETUP):
+    for key in (K_PROJECT, K_SETUP, K_GENALL):
         st.session_state.pop(key, None)
     st.session_state[K_STEP] = 0
 
@@ -250,9 +252,39 @@ def _render_providers_panel(engine: FlexibleVideoEngine) -> dict:
     return {"search_only": bool(search_only) and engine.aggregator.enabled}
 
 
+def _render_resume_saved(engine: FlexibleVideoEngine):
+    """Offer to resume the latest unfinished checkpoint after a session reset."""
+    saved = find_latest_saved_project()
+    if not saved:
+        return
+    with st.container(border=True):
+        st.info(tr("flxw.setup.resume_saved_info",
+                   title=saved["title"], ready=saved["ready"],
+                   total=saved["total"], saved=saved["saved_at"]))
+        if st.button(tr("flxw.setup.resume_saved_btn"), use_container_width=True):
+            try:
+                project, step = load_project(saved["path"])
+                _clear_project_widget_state()
+                st.session_state[K_PROJECT] = project
+                st.session_state[K_SETUP] = {
+                    "topic": project.params.get("text"),
+                    "n_scenes": project.params.get("n_scenes", len(project.scenes)),
+                    "language": project.params.get("flex_language"),
+                }
+                # Resume on a sensible step: never past Scenes (the final step
+                # recomposes), never before Script.
+                _goto(min(max(step or SCENES_STEP, 1), SCENES_STEP))
+            except Exception as e:
+                logger.exception(e)
+                st.error(tr("sbs.common.error", error=str(e)))
+
+
 def _render_setup(engine: FlexibleVideoEngine):
     pixelle_video = engine.core
     project = st.session_state.get(K_PROJECT)
+
+    if project is None:
+        _render_resume_saved(engine)
 
     left_col, right_col = st.columns([1, 1])
 
@@ -417,6 +449,10 @@ def _render_script(engine: FlexibleVideoEngine):
             value = _sync_text_widget(key, scene.narration)
             if _texts_differ(value, scene.narration):
                 _apply_narration_change(project, scene, value)
+                # Keep the Scenes-step widget in sync — a stale copy there
+                # would silently revert this edit (and re-invalidate audio)
+                # the next time the Scenes step renders.
+                _queue_override(f"flxw_scene_narr_{scene.uid}", value)
 
             c1, c2, _sp = st.columns([1, 1, 2])
             with c1:
@@ -430,6 +466,7 @@ def _render_script(engine: FlexibleVideoEngine):
                             ))
                         _apply_narration_change(project, scene, rewritten)
                         _queue_override(key, rewritten)
+                        _queue_override(f"flxw_scene_narr_{scene.uid}", rewritten)
                         st.rerun()
                     except Exception as e:
                         logger.exception(e)
@@ -1034,34 +1071,51 @@ def _render_scenes(engine: FlexibleVideoEngine):
     st.markdown(f"**{tr('sbs.scenes.progress', ready=ready, total=total)}**")
 
     # ---- Generate everything that's still missing ----
+    # One scene per script run: each completed scene is checkpointed to disk
+    # and triggers a rerun, so the previews update live and a dropped
+    # browser/tunnel session can be resumed from the Setup step instead of
+    # losing the whole run (long single-run loops are exactly when remote
+    # websockets die).
     pending = [s for s in project.scenes if not s.segment_path]
-    if pending and st.button(tr("sbs.scenes.generate_all", count=len(pending)),
-                             type="primary", use_container_width=True):
-        progress_bar = st.progress(ready / total if total else 0.0)
-        status = st.empty()
-        failed = False
-        for i, scene in enumerate(project.scenes):
-            if scene.segment_path:
-                continue
+    generating = st.session_state.get(K_GENALL, False)
 
-            def stage_cb(stage, _i=i):
+    if pending and not generating:
+        if st.button(tr("sbs.scenes.generate_all", count=len(pending)),
+                     type="primary", use_container_width=True):
+            st.session_state[K_GENALL] = True
+            st.rerun()
+
+    if generating:
+        if not pending:
+            st.session_state[K_GENALL] = False
+            st.success(tr("sbs.scenes.all_done"))
+        elif st.button(tr("flxw.scenes.genall_stop"), use_container_width=True):
+            st.session_state[K_GENALL] = False
+            st.rerun()
+        else:
+            scene = pending[0]
+            index = project.scenes.index(scene)
+            st.caption(tr("flxw.scenes.genall_running",
+                          ready=ready, total=total, current=index + 1))
+            progress_bar = st.progress(ready / total if total else 0.0)
+            status = st.empty()
+
+            def stage_cb(stage, _i=index):
                 status.text(_stage_text(stage, _i + 1))
 
             try:
-                run_async(engine.process_scene(project, scene, i, progress_callback=stage_cb))
+                run_async(engine.process_scene(project, scene, index,
+                                               progress_callback=stage_cb))
+                save_project(project, step=SCENES_STEP)
             except Exception as e:
                 logger.exception(e)
+                st.session_state[K_GENALL] = False
                 status.empty()
-                st.error(tr("sbs.scenes.scene_failed", n=i + 1, error=str(e)))
-                failed = True
-                break
-            done = sum(1 for s in project.scenes if s.segment_path)
-            progress_bar.progress(done / total)
-        if not failed:
-            status.text(tr("sbs.scenes.all_done"))
-            st.rerun()
-        # On failure: no rerun, so the error message stays visible.
-        # Partial progress is kept and shown on the next interaction.
+                st.error(tr("sbs.scenes.scene_failed", n=index + 1, error=str(e)))
+                # No rerun: the error stays visible; partial progress is kept.
+            else:
+                progress_bar.progress((ready + 1) / total)
+                st.rerun()   # next pending scene (or the all-done state)
 
     # ---- Per-scene cards ----
     for i, scene in enumerate(project.scenes):
@@ -1198,6 +1252,11 @@ def render_flex_wizard(pixelle_video):
     if step > 0 and project is None:
         step = 0
         st.session_state[K_STEP] = 0
+
+    # Checkpoint to disk every run: session state dies with the browser/tunnel
+    # session, the task dir doesn't — Setup offers to resume from there.
+    if project is not None:
+        save_project(project, step=step)
 
     _render_stepper(step, project)
 

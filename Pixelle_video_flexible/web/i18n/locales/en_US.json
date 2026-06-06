@@ -664,6 +664,10 @@
     "flxw.final.new_project": "🆕 Start New Project",
     "flxw.setup.search_only_label": "🔒 Stock-only (never generate)",
     "flxw.setup.search_only_help": "Every scene uses real stock media: the AI plans search keywords for all scenes, and an empty search retries with broader keywords instead of falling back to AI generation. No generation model is ever loaded — the video needs only TTS + ffmpeg (no GPU).",
-    "flxw.plan.search_only_info": "🔒 Stock-only project — every scene is planned as a stock search; empty searches retry with broader keywords and never fall back to AI generation."
+    "flxw.plan.search_only_info": "🔒 Stock-only project — every scene is planned as a stock search; empty searches retry with broader keywords and never fall back to AI generation.",
+    "flxw.setup.resume_saved_info": "💾 Found an unfinished project: \"{title}\" — {ready}/{total} scenes ready (saved {saved}). Resume it instead of starting over (e.g. after a dropped tunnel/browser session).",
+    "flxw.setup.resume_saved_btn": "💾 Resume saved project",
+    "flxw.scenes.genall_running": "⚡ Generating… {ready}/{total} segments ready — working on scene {current}. One scene per pass; progress is checkpointed to disk after each scene.",
+    "flxw.scenes.genall_stop": "⏹ Stop after the current scene"
   }
 }
