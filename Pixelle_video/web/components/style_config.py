@@ -122,6 +122,7 @@ def render_style_config(pixelle_video):
             # Variables for video generation
             tts_workflow_key = None
             ref_audio_path = None
+            ref_text = None
 
         # ================================================================
         # VieNeu Mode UI (local Vietnamese TTS)
@@ -179,6 +180,7 @@ def render_style_config(pixelle_video):
             )
 
             ref_audio_path = None
+            ref_text = None
             if ref_audio_file is not None:
                 st.audio(ref_audio_file)
                 temp_dir = Path("temp")
@@ -186,6 +188,14 @@ def render_style_config(pixelle_video):
                 ref_audio_path = temp_dir / f"ref_audio_{ref_audio_file.name}"
                 with open(ref_audio_path, "wb") as f:
                     f.write(ref_audio_file.getbuffer())
+
+                # Transcript of the reference audio — required for cloning in
+                # max/standard modes (turbo clones from audio alone)
+                ref_text = st.text_input(
+                    tr("tts.ref_text"),
+                    help=tr("tts.ref_text_help"),
+                    key="vieneu_ref_text"
+                ) or None
 
             # Variables for video generation
             tts_workflow_key = None
@@ -249,7 +259,8 @@ def render_style_config(pixelle_video):
             # Variables for video generation
             selected_voice = None
             tts_speed = None
-        
+            ref_text = None
+
         # ================================================================
         # TTS Preview (works for both modes)
         # ================================================================
@@ -284,6 +295,8 @@ def render_style_config(pixelle_video):
                             tts_params["speed"] = tts_speed
                             if ref_audio_path:
                                 tts_params["ref_audio"] = str(ref_audio_path)
+                                if ref_text:
+                                    tts_params["ref_text"] = ref_text
                         else:  # comfyui
                             tts_params["workflow"] = tts_workflow_key
                             if ref_audio_path:
@@ -985,6 +998,7 @@ def render_style_config(pixelle_video):
         "tts_speed": tts_speed if tts_mode in ("local", "vieneu") else None,
         "tts_workflow": tts_workflow_key if tts_mode == "comfyui" else None,
         "ref_audio": str(ref_audio_path) if ref_audio_path else None,
+        "ref_text": ref_text if ref_audio_path else None,
         "frame_template": frame_template,
         "template_params": custom_values_for_video if custom_values_for_video else None,
         "media_workflow": workflow_key,

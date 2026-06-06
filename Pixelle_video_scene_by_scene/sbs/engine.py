@@ -275,6 +275,7 @@ class SceneBySceneEngine:
             tts_workflow=tts_workflow,
             tts_speed=params.get("tts_speed", 1.2),
             ref_audio=params.get("ref_audio"),
+            ref_text=params.get("ref_text"),
             media_width=params.get("media_width"),
             media_height=params.get("media_height"),
             media_workflow=params.get("media_workflow"),
@@ -344,6 +345,8 @@ class SceneBySceneEngine:
                 tts_params["speed"] = config.tts_speed
             if config.ref_audio:
                 tts_params["ref_audio"] = config.ref_audio
+                if config.ref_text:
+                    tts_params["ref_text"] = config.ref_text
         else:  # comfyui
             if config.tts_workflow:
                 tts_params["workflow"] = config.tts_workflow

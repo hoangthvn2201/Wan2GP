@@ -182,6 +182,8 @@ class FrameProcessor:
                 tts_params["speed"] = config.tts_speed
             if config.ref_audio:
                 tts_params["ref_audio"] = config.ref_audio
+                if config.ref_text:
+                    tts_params["ref_text"] = config.ref_text
         else:  # comfyui
             # ComfyUI mode: pass workflow, voice, speed, and ref_audio
             if config.tts_workflow:

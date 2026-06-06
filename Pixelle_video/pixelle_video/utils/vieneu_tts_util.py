@@ -13,17 +13,35 @@
 """
 VieNeu TTS Utility - Local Vietnamese TTS (https://github.com/pnnbao97/VieNeu-TTS)
 
-Runs the VieNeu-TTS model fully on-device in "turbo" mode (GGUF backbone via
-llama-cpp-python + ONNX codec), so it works on CPU and needs no API key.
-Model weights are downloaded automatically from HuggingFace on first use
-(pnnbao-ump/VieNeu-TTS-v2-Turbo-GGUF + pnnbao-ump/VieNeu-Codec).
+Runs the VieNeu-TTS model fully on-device, no API key needed. Model weights
+are downloaded automatically from HuggingFace on first use.
 
-Install (from the Wan2GP repo root, inside the Wan2GP env):
+Three quality tiers (config: tts.vieneu.mode), each falling back to the next
+one if its dependencies/VRAM are missing, so a bad config degrades quality
+instead of crashing the pipeline:
+
+  "max"      — full-precision VieNeu-TTS-v2 PyTorch backbone
+               (pnnbao-ump/VieNeu-TTS-v2 safetensors) + full NeuCodec codec
+               (neuphonic/neucodec). Best audio quality and high-fidelity
+               voice cloning (needs ref_text). Needs torch/transformers
+               (already in Wan2GP) plus the "max quality" extras of
+               requirements-vieneu.txt (neucodec, torchtune, torchao,
+               local-attention). GPU recommended.
+  "standard" — VieNeu-TTS-v2 Q4_K_M GGUF backbone (llama-cpp-python) +
+               int8 ONNX codec decoder (CPU). Better than turbo, no extra
+               deps beyond the base vieneu install. No voice cloning
+               (decoder-only codec).
+  "turbo"    — VieNeu-TTS-v2-Turbo GGUF + ONNX codec
+               (pnnbao-ump/VieNeu-TTS-v2-Turbo-GGUF + pnnbao-ump/VieNeu-Codec).
+               Fastest/CPU-friendliest, lowest quality (upstream warns about
+               artifacts on very short sentences).
+
+Base install (from the Wan2GP repo root, inside the Wan2GP env):
     pip install -r Pixelle_video/requirements-vieneu.txt
     pip install vieneu==2.7.0 --no-deps
 (--no-deps avoids vieneu's gradio>=5.49.1 / CPU onnxruntime pins clobbering
 Wan2GP's gradio==5.29.0 / onnxruntime-gpu; see requirements-vieneu.txt for
-build prerequisites — cmake + C compiler for llama-cpp-python, Rust for sea-g2p.)
+build prerequisites and the optional "max quality" extras.)
 """
 
 import asyncio
@@ -54,8 +72,13 @@ DEFAULT_VIENEU_VOICE = "Xuân Vĩnh (Nam - Miền Nam)"
 # Singleton engine (model stays loaded between calls) + lock:
 # llama-cpp inference is not thread-safe, serialize synthesis.
 _engine = None
-_engine_key = None
+_engine_key = None        # (requested_mode, requested_device) the engine was built for
+_engine_mode = None       # effective mode after fallback ("max"/"standard"/"turbo")
 _engine_lock = threading.Lock()
+
+# Quality fallback chain: if a tier fails to load (missing optional deps,
+# no GPU, OOM...), drop one tier instead of failing the whole pipeline.
+_MODE_FALLBACK = {"max": "standard", "standard": "turbo"}
 
 # Cache encoded reference audio by (path, mtime) to avoid re-encoding
 # the same cloning sample for every frame.
@@ -94,36 +117,146 @@ def get_vieneu_voice_label(voice_id: str) -> str:
     return voice_id
 
 
+def _resolve_device(device: str) -> str:
+    """Downgrade 'cuda' to 'cpu' when CUDA is unavailable (avoid hard crash)"""
+    if device != "cpu":
+        try:
+            import torch
+            if torch.cuda.is_available():
+                return device
+        except ImportError:
+            pass
+        logger.warning(f"⚠️  VieNeu device '{device}' requested but CUDA is not available; using CPU")
+        return "cpu"
+    return device
+
+
+def _build_engine(mode: str, device: str):
+    """
+    Construct a VieNeu engine for one quality tier (see module docstring).
+
+    Upstream constructor kwargs differ per backend: only the turbo backend
+    takes `device=`; the standard backend takes backbone_device/codec_device
+    (passing `device=` to it is a TypeError — hence this mapping).
+    """
+    from vieneu import Vieneu
+
+    if mode == "max":
+        return Vieneu(
+            mode="standard",
+            backbone_repo="pnnbao-ump/VieNeu-TTS-v2",
+            gguf_filename=None,                 # None = full-precision safetensors backbone
+            backbone_device=device,
+            codec_repo="neuphonic/neucodec",    # full PyTorch codec (encode + decode)
+            codec_device=device,
+        )
+    if mode == "standard":
+        # Upstream defaults: Q4_K_M GGUF backbone + int8 ONNX decoder (CPU-only codec)
+        return Vieneu(mode="standard", backbone_device=device, codec_device="cpu")
+    return Vieneu(mode="turbo", device=device)
+
+
 def _get_engine(mode: str = "turbo", device: str = "cpu"):
     """
     Get or create the shared VieNeu engine (lazy, downloads weights on first use)
 
     Args:
-        mode: VieNeu backend ("turbo" recommended: GGUF+ONNX, runs on CPU;
-              "standard"/"fast" need the GPU extras of vieneu)
+        mode: Quality tier — "max", "standard" or "turbo" (see module
+              docstring). Unknown values are treated as "turbo".
         device: "cpu" or "cuda"
+
+    A tier that fails to initialize falls back down the chain
+    (max → standard → turbo) with a warning instead of raising, so a missing
+    optional dependency degrades audio quality, not the whole pipeline.
     """
-    global _engine, _engine_key
+    global _engine, _engine_key, _engine_mode
 
     key = (mode, device)
-    if _engine is not None and _engine_key == key:
-        return _engine
+    if _engine is not None:
+        if _engine_key == key:
+            return _engine
+        # Config changed: release the old engine before building a new one
+        try:
+            _engine.close()
+        except Exception:
+            pass
+        _engine = None
+        _engine_mode = None
+        _ref_audio_cache.clear()
 
-    try:
-        from vieneu import Vieneu
-    except ImportError as e:
+    if not is_vieneu_available():
         raise ImportError(
             "VieNeu-TTS is not installed. Install it with:\n"
             "  pip install -r Pixelle_video/requirements-vieneu.txt\n"
             "  pip install vieneu==2.7.0 --no-deps"
-        ) from e
+        )
 
-    logger.info(f"🔄 Loading VieNeu-TTS engine (mode={mode}, device={device})... "
-                f"(first run downloads model weights from HuggingFace)")
-    _engine = Vieneu(mode=mode, device=device)
+    device = _resolve_device(device)
+    current = mode if mode in ("max", "standard", "turbo") else "turbo"
+    if current != mode:
+        logger.warning(f"⚠️  Unknown VieNeu mode '{mode}', using 'turbo'")
+
+    while True:
+        try:
+            logger.info(f"🔄 Loading VieNeu-TTS engine (mode={current}, device={device})... "
+                        f"(first run downloads model weights from HuggingFace)")
+            engine = _build_engine(current, device)
+            break
+        except Exception as e:
+            fallback = _MODE_FALLBACK.get(current)
+            if not fallback:
+                raise
+            logger.warning(
+                f"⚠️  VieNeu mode '{current}' failed to load ({type(e).__name__}: {e}); "
+                f"falling back to '{fallback}'."
+                + (" For 'max' install the max-quality extras listed in "
+                   "Pixelle_video/requirements-vieneu.txt." if current == "max" else "")
+            )
+            current = fallback
+
+    # Cache under the *requested* key so the next call with the same config
+    # reuses the (possibly demoted) engine without retrying the failed tier.
+    _engine = engine
     _engine_key = key
-    logger.info("✅ VieNeu-TTS engine ready")
+    _engine_mode = current
+    logger.info(f"✅ VieNeu-TTS engine ready (effective mode: {current})")
     return _engine
+
+
+def _demote_engine() -> bool:
+    """
+    Drop the loaded engine one quality tier (used when synthesis itself
+    fails, e.g. CUDA OOM mid-run). Returns False when already at the bottom.
+    """
+    global _engine, _engine_key, _engine_mode
+
+    fallback = _MODE_FALLBACK.get(_engine_mode or "turbo")
+    if _engine is None or not fallback:
+        return False
+
+    requested_key = _engine_key
+    device = requested_key[1] if requested_key else "cpu"
+    logger.warning(f"⚠️  Demoting VieNeu engine '{_engine_mode}' → '{fallback}' after synthesis failure")
+
+    try:
+        _engine.close()
+    except Exception:
+        pass
+    _engine = None
+    _engine_mode = None
+    _engine_key = None
+    _ref_audio_cache.clear()
+    try:
+        import torch
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    except ImportError:
+        pass
+
+    _engine = _build_engine(fallback, _resolve_device(device))
+    _engine_key = requested_key
+    _engine_mode = fallback
+    return True
 
 
 def _normalize_voice_name(name: str) -> str:
@@ -134,25 +267,51 @@ def _normalize_voice_name(name: str) -> str:
     return stripped.replace("đ", "d").replace("Đ", "D").casefold().strip()
 
 
-def _resolve_voice(engine, voice: Optional[str], ref_audio: Optional[str]):
+def _resolve_voice(engine, voice: Optional[str], ref_audio: Optional[str],
+                   ref_text: Optional[str] = None):
     """
     Resolve voice parameter: cloned reference audio > preset voice > default.
+
+    Voice cloning contracts differ per backend: the turbo backend takes raw
+    reference codes, while the standard backend (modes "standard"/"max")
+    requires a {"codes", "text"} dict — its prompt format needs the
+    transcript of the reference audio (ref_text). Cloning problems (missing
+    ref_text, encode-incapable codec, bad audio) fall back to the preset
+    voice with a warning instead of failing the whole pipeline.
 
     Preset lookup is forgiving: the model's voices.json (downloaded from
     HuggingFace) may use different IDs across model versions, so an exact
     miss falls back to a diacritic-insensitive substring match, and an
-    unknown voice falls back to the engine's default voice with a warning
-    instead of failing the whole pipeline.
+    unknown voice falls back to the engine's default voice with a warning.
     """
     if ref_audio:
-        ref_path = Path(ref_audio)
-        if not ref_path.exists():
-            raise FileNotFoundError(f"Reference audio not found: {ref_audio}")
-        cache_key = (str(ref_path.resolve()), ref_path.stat().st_mtime)
-        if cache_key not in _ref_audio_cache:
-            logger.info(f"🎤 Encoding reference audio for voice cloning: {ref_audio}")
-            _ref_audio_cache[cache_key] = engine.encode_reference(str(ref_path))
-        return _ref_audio_cache[cache_key]
+        is_standard_backend = _engine_mode in ("max", "standard")
+        if is_standard_backend and not (ref_text and ref_text.strip()):
+            logger.warning(
+                f"⚠️  VieNeu '{_engine_mode}' mode needs the transcript of the reference "
+                "audio (ref_text) for voice cloning; falling back to preset voice. "
+                "Provide ref_text, or use turbo mode for audio-only cloning."
+            )
+        else:
+            ref_path = Path(ref_audio)
+            if not ref_path.exists():
+                raise FileNotFoundError(f"Reference audio not found: {ref_audio}")
+            cache_key = (str(ref_path.resolve()), ref_path.stat().st_mtime, ref_text or "")
+            try:
+                if cache_key not in _ref_audio_cache:
+                    logger.info(f"🎤 Encoding reference audio for voice cloning: {ref_audio}")
+                    codes = engine.encode_reference(str(ref_path))
+                    _ref_audio_cache[cache_key] = (
+                        {"codes": codes, "text": ref_text.strip()}
+                        if is_standard_backend else codes
+                    )
+                return _ref_audio_cache[cache_key]
+            except Exception as e:
+                # e.g. "standard" mode's int8 ONNX codec is decoder-only
+                logger.warning(
+                    f"⚠️  Voice cloning unavailable in '{_engine_mode}' mode "
+                    f"({type(e).__name__}: {e}); falling back to preset voice."
+                )
 
     if voice:
         available = [voice_id for _desc, voice_id in engine.list_preset_voices()]
@@ -229,6 +388,7 @@ def _vieneu_tts_sync(
     voice: Optional[str] = None,
     speed: Optional[float] = None,
     ref_audio: Optional[str] = None,
+    ref_text: Optional[str] = None,
     output_path: str = None,
     mode: str = "turbo",
     device: str = "cpu",
@@ -236,10 +396,23 @@ def _vieneu_tts_sync(
     """Synchronous VieNeu synthesis (run via asyncio.to_thread)"""
     with _engine_lock:
         engine = _get_engine(mode=mode, device=device)
-        voice_data = _resolve_voice(engine, voice, ref_audio)
 
-        logger.debug(f"VieNeu synthesizing {len(text)} chars (voice={voice or 'default'})")
-        audio = engine.infer(text=text, voice=voice_data, show_progress=False)
+        # Synthesis failures (e.g. CUDA OOM mid-run while sharing the GPU
+        # with video generation) demote one quality tier and retry instead
+        # of failing the pipeline.
+        while True:
+            try:
+                voice_data = _resolve_voice(engine, voice, ref_audio, ref_text)
+                logger.debug(f"VieNeu synthesizing {len(text)} chars (voice={voice or 'default'})")
+                audio = engine.infer(text=text, voice=voice_data, show_progress=False)
+                break
+            except FileNotFoundError:
+                raise  # bad ref_audio path — not an engine problem, don't demote
+            except Exception as e:
+                logger.warning(f"⚠️  VieNeu synthesis failed ({type(e).__name__}: {e})")
+                if not _demote_engine():
+                    raise
+                engine = _engine
 
         audio = _apply_speed(audio, speed)
         return _save_audio(engine, audio, output_path)
@@ -250,6 +423,7 @@ async def vieneu_tts(
     voice: Optional[str] = None,
     speed: Optional[float] = None,
     ref_audio: Optional[str] = None,
+    ref_text: Optional[str] = None,
     output_path: str = None,
     mode: str = "turbo",
     device: str = "cpu",
@@ -265,9 +439,14 @@ async def vieneu_tts(
                pitch-preserving time stretch
         ref_audio: Optional reference audio (3-5s wav/mp3) for zero-shot
                    voice cloning; takes precedence over `voice`
+        ref_text: Transcript of ref_audio — required for cloning in
+                  "max"/"standard" modes (ignored in turbo mode)
         output_path: Output file path (.wav saved directly, .mp3 etc.
                      converted via ffmpeg)
-        mode: VieNeu backend ("turbo" = CPU-friendly GGUF/ONNX, default)
+        mode: Quality tier — "max" (full-precision backbone + full codec,
+              best quality, GPU recommended), "standard" (Q4 GGUF + int8
+              ONNX) or "turbo" (fastest, lowest quality, default). Each
+              tier falls back to the next on failure.
         device: "cpu" or "cuda"
 
     Returns:
@@ -277,6 +456,8 @@ async def vieneu_tts(
         audio_path = await vieneu_tts(
             text="Xin chào, đây là giọng đọc tiếng Việt.",
             voice="Bích Ngọc (Nữ - Miền Bắc)",
+            mode="max",
+            device="cuda",
             output_path="output/hello.mp3"
         )
     """
@@ -291,6 +472,7 @@ async def vieneu_tts(
         voice=voice,
         speed=speed,
         ref_audio=ref_audio,
+        ref_text=ref_text,
         output_path=output_path,
         mode=mode,
         device=device,

@@ -37,15 +37,24 @@ comfyui:
     # VieNeu-TTS (Vietnamese, https://github.com/pnnbao97/VieNeu-TTS)
     # Install first: pip install -r Pixelle_video/requirements-vieneu.txt
     #                pip install vieneu==2.7.0 --no-deps
+    # For mode "max" also install the max-quality extras documented in
+    # requirements-vieneu.txt (neucodec, torchtune, torchao, local-attention).
     vieneu:
-      # Preset voices (turbo model): Xuân Vĩnh (Nam - Miền Nam), Phạm Tuyên (Nam - Miền Bắc),
-      #                              Bích Ngọc (Nữ - Miền Bắc), Thục Đoan (Nữ - Miền Nam)
+      # Preset voices: Xuân Vĩnh (Nam - Miền Nam), Phạm Tuyên (Nam - Miền Bắc),
+      #                Bích Ngọc (Nữ - Miền Bắc), Thục Đoan (Nữ - Miền Nam)
       # Names are fuzzy-matched (e.g. "Tuyen" resolves to Phạm Tuyên)
       voice: Xuân Vĩnh (Nam - Miền Nam)
       speed: 1.0         # Speed multiplier 0.5-2.0 (pitch-preserving time stretch)
       ref_audio: null    # Optional 3-5s wav/mp3 for zero-shot voice cloning (overrides voice)
-      mode: turbo        # turbo = CPU-friendly GGUF/ONNX backend (recommended)
-      device: cpu        # cpu or cuda
+      ref_text: null     # Transcript of ref_audio — required for cloning in max/standard modes
+      # Quality tier, each falls back to the next if its deps/GPU are missing:
+      #   max      = full-precision VieNeu-TTS-v2 backbone + full NeuCodec (best quality,
+      #              GPU recommended, supports high-fidelity cloning with ref_text)
+      #   standard = Q4 GGUF backbone + int8 ONNX codec (good quality, no extra deps,
+      #              no voice cloning)
+      #   turbo    = Turbo GGUF model (fastest, lowest quality, audio-only cloning)
+      mode: max
+      device: cuda       # cpu or cuda (falls back to cpu if CUDA unavailable)
     comfyui:
       default_workflow: selfhost/tts_edge.json  # TTS workflow to use
   

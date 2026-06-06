@@ -264,6 +264,8 @@
     "tts.how": "Place the exported tts_xxx.json workflow file(API format) into the workflows/selfhost/ folder (for local ComfyUI) or the workflows/runninghub/ folder (for cloud)",
     "tts.ref_audio": "Reference Audio",
     "tts.ref_audio_help": "Upload audio file for voice cloning (only supported by some workflows)",
+    "tts.ref_text": "Reference Transcript",
+    "tts.ref_text_help": "Exact transcript of the reference audio — required for voice cloning in VieNeu max/standard modes (turbo clones from audio alone)",
     "tts.preview_title": "Preview TTS",
     "tts.preview_text": "Preview Text",
     "tts.preview_text_placeholder": "Enter text to preview...",

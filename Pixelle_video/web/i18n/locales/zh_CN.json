@@ -264,6 +264,8 @@
     "tts.how": "将导出的 tts_xxx.json 工作流文件（API格式）放入 workflows/selfhost/（本地 ComfyUI）或 workflows/runninghub/（云端）文件夹",
     "tts.ref_audio": "参考音频",
     "tts.ref_audio_help": "上传音频文件用于声音克隆（仅部分工作流支持）",
+    "tts.ref_text": "参考音频文本",
+    "tts.ref_text_help": "参考音频的逐字文本——VieNeu max/standard 模式下声音克隆必需（turbo 模式仅凭音频即可克隆）",
     "tts.preview_title": "预览 TTS",
     "tts.preview_text": "预览文本",
     "tts.preview_text_placeholder": "输入要试听的文本...",
