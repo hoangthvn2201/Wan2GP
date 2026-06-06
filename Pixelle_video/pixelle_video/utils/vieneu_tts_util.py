@@ -353,6 +353,67 @@ def _apply_speed(audio, speed: float):
     return librosa.effects.time_stretch(y=audio.astype(np.float32), rate=float(speed))
 
 
+def _duration_budget(text: str) -> float:
+    """
+    Generous upper bound (seconds) for healthy speech of `text`.
+
+    Vietnamese/English narration runs ~14-18 chars/s; budget allows ~2.5x
+    that plus slack, so legitimate slow speech never trips it while a
+    runaway 33s output for a one-sentence input always does.
+    """
+    return max(6.0, (len(text) * 0.09 + 2.0) * 2.5)
+
+
+def _trim_edge_silence(audio, sample_rate: int):
+    """Trim leading/trailing silence (keeps internal pauses intact)"""
+    try:
+        import librosa
+        import numpy as np
+        trimmed, _ = librosa.effects.trim(audio.astype(np.float32), top_db=40)
+        return trimmed if len(trimmed) > 0 else audio
+    except Exception:
+        return audio
+
+
+def _infer_guarded(engine, text: str, voice_data):
+    """
+    engine.infer() with a runaway-generation guard.
+
+    The backbone samples speech tokens until it emits its end-of-speech
+    token; when that token is never sampled (happens with the default
+    temperature 1.0, most often on short sentences), generation runs to the
+    2048-token context limit and decodes to ~30-40s of mostly silent audio
+    (speech codes are 50/s). Upstream exposes no duration cap, so: detect
+    by duration vs. a text-length budget, retry at lower temperature (makes
+    the end token far more likely), and trim edge silence as a last resort.
+    """
+    budget = _duration_budget(text)
+    sample_rate = getattr(engine, "sample_rate", 24000)
+
+    audio = None
+    # First attempt uses the backend's tuned default temperature
+    for attempt, extra in enumerate(({}, {"temperature": 0.7}, {"temperature": 0.5})):
+        audio = engine.infer(text=text, voice=voice_data, show_progress=False, **extra)
+        duration = len(audio) / sample_rate
+        if duration <= budget:
+            if attempt:
+                logger.info(f"✅ VieNeu retry {attempt} produced healthy audio ({duration:.1f}s)")
+            return audio
+        logger.warning(
+            f"⚠️  VieNeu runaway output: {duration:.1f}s audio for {len(text)} chars "
+            f"(budget {budget:.1f}s) — end-of-speech token was never sampled"
+            + (f"; retrying at temperature={0.7 if attempt == 0 else 0.5}" if attempt < 2 else "")
+        )
+
+    # All attempts ran away: salvage by trimming leading/trailing silence
+    trimmed = _trim_edge_silence(audio, sample_rate)
+    logger.warning(
+        f"⚠️  Keeping last attempt after trimming edge silence: "
+        f"{len(audio) / sample_rate:.1f}s -> {len(trimmed) / sample_rate:.1f}s"
+    )
+    return trimmed
+
+
 def _save_audio(engine, audio, output_path: str) -> str:
     """
     Save audio to output_path. VieNeu outputs 24kHz float PCM; soundfile
@@ -404,7 +465,7 @@ def _vieneu_tts_sync(
             try:
                 voice_data = _resolve_voice(engine, voice, ref_audio, ref_text)
                 logger.debug(f"VieNeu synthesizing {len(text)} chars (voice={voice or 'default'})")
-                audio = engine.infer(text=text, voice=voice_data, show_progress=False)
+                audio = _infer_guarded(engine, text, voice_data)
                 break
             except FileNotFoundError:
                 raise  # bad ref_audio path — not an engine problem, don't demote
