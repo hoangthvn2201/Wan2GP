@@ -670,6 +670,9 @@
     "flxw.setup.resume_saved_info": "💾 发现未完成的项目：「{title}」—— {ready}/{total} 个场景已就绪（保存于 {saved}）。可直接恢复，无需重新开始（例如隧道/浏览器会话断开之后）。",
     "flxw.setup.resume_saved_btn": "💾 恢复已保存的项目",
     "flxw.scenes.genall_running": "⚡ 生成中… {ready}/{total} 个片段已就绪 —— 正在处理场景 {current}。每轮处理一个场景；每完成一个场景即写入磁盘存档。",
-    "flxw.scenes.genall_stop": "⏹ 当前场景完成后停止"
+    "flxw.scenes.genall_stop": "⏹ 当前场景完成后停止",
+    "flxw.plan.gen_prompt_btn": "🎲 AI 生成提示词",
+    "flxw.plan.gen_prompt_regen_btn": "🎲 重新生成提示词",
+    "flxw.plan.gen_prompt_help": "根据该场景的旁白撰写媒体生成提示词（自动应用风格前缀）。把场景从素材搜索切换为 AI 生成后特别有用 —— 搜索场景只有关键词，没有提示词。"
   }
 }

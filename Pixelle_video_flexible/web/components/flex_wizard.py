@@ -539,6 +539,31 @@ def _queue_plan_widgets(scene: FlexScene):
     _queue_override(f"flxw_scene_prompt_{scene.uid}", scene.prompt or "")
 
 
+def _render_ai_prompt_button(engine: FlexibleVideoEngine, project, scene, key: str):
+    """
+    "🎲 AI prompt" — (re)write this scene's generation prompt from its
+    narration. The main use case: a scene flipped from stock search to AI
+    generate has no prompt yet (search scenes carry only keywords).
+    """
+    label = (tr("flxw.plan.gen_prompt_regen_btn") if (scene.prompt or "").strip()
+             else tr("flxw.plan.gen_prompt_btn"))
+    if st.button(label, key=key, disabled=not scene.narration.strip(),
+                 help=tr("flxw.plan.gen_prompt_help")):
+        try:
+            with st.spinner(tr("sbs.prompts.regenerating")):
+                new_prompt = run_async(engine.generate_prompt_for(
+                    scene.narration, prompt_prefix=_effective_prefix(project)
+                ))
+            scene.prompt = new_prompt
+            scene.invalidate_media()
+            _queue_override(f"flxw_prompt_{scene.uid}", new_prompt)
+            _queue_override(f"flxw_scene_prompt_{scene.uid}", new_prompt)
+            st.rerun()
+        except Exception as e:
+            logger.exception(e)
+            st.error(tr("sbs.common.error", error=str(e)))
+
+
 def _render_plan(engine: FlexibleVideoEngine):
     project = st.session_state.get(K_PROJECT)
     if project is None:
@@ -644,6 +669,10 @@ def _render_plan(engine: FlexibleVideoEngine):
                     scene.prompt = pval
                     scene.invalidate_media()
                     _queue_override(f"flxw_scene_prompt_{scene.uid}", pval)
+                # Switched from search to generate? The scene has no prompt
+                # yet — write one from the narration with a click.
+                _render_ai_prompt_button(engine, project, scene,
+                                         key=f"flxw_genprompt_{scene.uid}")
 
             if scene.plan_reason:
                 st.caption(tr("flxw.plan.reason_caption", reason=scene.plan_reason))
@@ -717,7 +746,8 @@ def _render_candidate_gallery(engine: FlexibleVideoEngine, project, scene, index
                         st.rerun()
 
 
-def _render_generate_prompt_editor(scene, label_key: str = "flxw.plan.prompt_label"):
+def _render_generate_prompt_editor(engine: FlexibleVideoEngine, project, scene,
+                                   label_key: str = "flxw.plan.prompt_label"):
     """Prompt editor for generate / fallen-back scenes on the Source step."""
     st.caption(tr(label_key))
     pkey = f"flxw_prompt_{scene.uid}"
@@ -726,6 +756,8 @@ def _render_generate_prompt_editor(scene, label_key: str = "flxw.plan.prompt_lab
         scene.prompt = pval
         scene.invalidate_media()
         _queue_override(f"flxw_scene_prompt_{scene.uid}", pval)
+    _render_ai_prompt_button(engine, project, scene,
+                             key=f"flxw_src_genprompt_{scene.uid}")
 
 
 def _render_source_scene(engine: FlexibleVideoEngine, project, scene, index: int):
@@ -740,7 +772,7 @@ def _render_source_scene(engine: FlexibleVideoEngine, project, scene, index: int
                 st.info(tr("flxw.source.fallback_notice"))
             else:
                 st.caption(tr("flxw.source.generate_scene_caption"))
-            _render_generate_prompt_editor(scene)
+            _render_generate_prompt_editor(engine, project, scene)
             return
 
         # ---- Search scenes ----
