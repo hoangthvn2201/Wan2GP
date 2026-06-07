@@ -44,7 +44,6 @@ from sbs import Scene, SceneBySceneEngine
 K_STEP = "sbs_step"
 K_PROJECT = "sbs_project"
 K_RESULT = "sbs_result"
-K_OVERRIDES = "sbs_widget_overrides"
 
 STEPS = ["setup", "script", "prompts", "scenes", "final"]
 STEP_ICONS = ["⚙️", "📝", "🎨", "🎬", "🏁"]
@@ -52,34 +51,19 @@ STEP_ICONS = ["⚙️", "📝", "🎨", "🎬", "🏁"]
 
 # ============================================================================
 # Widget-state helpers
+#
+# Model state (the project / scenes) is the single source of truth; widgets
+# are bound to it through _bind_text below, which detects whether the MODEL
+# or the WIDGET moved since the last render — so a stale widget copy can
+# never silently overwrite a model value changed elsewhere.
 # ============================================================================
 
-def _apply_widget_overrides():
-    """
-    Apply queued widget value overrides BEFORE any sbs widget is created.
-
-    Streamlit forbids writing `st.session_state[key]` of a widget after it was
-    instantiated in the same run, so programmatic updates (AI rewrite,
-    regenerate prompt, ...) are queued here and applied at the top of the next
-    run.
-    """
-    overrides = st.session_state.get(K_OVERRIDES) or {}
-    for key, value in overrides.items():
-        st.session_state[key] = value
-    st.session_state[K_OVERRIDES] = {}
-
-
-def _queue_override(key: str, value):
-    overrides = st.session_state.setdefault(K_OVERRIDES, {})
-    overrides[key] = value
-
-
 def _clear_project_widget_state():
-    """Drop per-scene widget state from a previous project."""
+    """Drop per-scene widget state (and binder companions) from a previous project."""
     for key in list(st.session_state.keys()):
-        if key.startswith(("sbs_narr_", "sbs_prompt_", "sbs_scene_narr_", "sbs_scene_prompt_")):
+        if key.startswith(("sbs_narr_", "sbs_prompt_", "sbs_scene_narr_",
+                           "sbs_scene_prompt_", "sbs_title_w")):
             del st.session_state[key]
-    st.session_state.pop("sbs_title_w", None)
     st.session_state.pop(K_RESULT, None)
 
 
@@ -319,11 +303,33 @@ def _render_setup(engine: SceneBySceneEngine):
 # Step ② Script
 # ============================================================================
 
-def _sync_text_widget(key: str, current_value: str, height: int = 80, label: str = "narration"):
-    """Render a text_area bound to `key` and return its (possibly edited) value."""
+def _bind_text(key: str, model_value: str, *, height: int = 80, label: str = "text",
+               input_widget: bool = False, label_visibility: str = "collapsed"):
+    """
+    Text widget two-way bound to a model value, immune to stale widget state.
+
+    A plain `if widget != model: model = widget` treats ANY mismatch as a user
+    edit — but a mismatch can equally mean the MODEL was changed elsewhere
+    (an edit on another step, AI rewrite, regenerated prompt) while this
+    widget kept a stale copy; writing that stale copy back silently REVERTS
+    the change (lost-script bug). A companion key remembers the model value
+    this widget was last synced to, so the two directions can be told apart:
+    model moved -> push the model into the widget (never apply the stale
+    copy); widget moved -> return the edit for the caller to apply.
+    """
+    sync_key = key + "__synced"
+    model_value = model_value or ""
+    last_synced = st.session_state.get(sync_key)
     if key not in st.session_state:
-        st.session_state[key] = current_value
-    return st.text_area(label, key=key, height=height, label_visibility="collapsed")
+        # First render (or Streamlit dropped the unrendered widget's state)
+        st.session_state[key] = model_value
+    elif last_synced is None or _texts_differ(last_synced, model_value):
+        # The model changed since this widget last rendered: its copy is stale
+        st.session_state[key] = model_value
+    st.session_state[sync_key] = model_value
+    if input_widget:
+        return st.text_input(label, key=key, label_visibility=label_visibility)
+    return st.text_area(label, key=key, height=height, label_visibility=label_visibility)
 
 
 def _texts_differ(a: str, b: str) -> bool:
@@ -361,11 +367,11 @@ def _render_script(engine: SceneBySceneEngine):
     st.caption(tr("sbs.script.hint"))
 
     # ---- Title ----
-    if "sbs_title_w" not in st.session_state:
-        st.session_state["sbs_title_w"] = project.title
-    new_title = st.text_input(tr("sbs.script.title_label"), key="sbs_title_w")
-    if new_title.strip() and new_title != project.title:
-        project.title = new_title
+    new_title = _bind_text("sbs_title_w", project.title,
+                           label=tr("sbs.script.title_label"),
+                           input_widget=True, label_visibility="visible")
+    if new_title.strip() and _texts_differ(new_title, project.title):
+        project.title = new_title.strip()
 
     # ---- Scenes ----
     for i, scene in enumerate(list(project.scenes)):
@@ -373,7 +379,7 @@ def _render_script(engine: SceneBySceneEngine):
             st.markdown(f"**{tr('sbs.script.scene_label', n=i + 1)}**")
 
             key = f"sbs_narr_{scene.uid}"
-            value = _sync_text_widget(key, scene.narration)
+            value = _bind_text(key, scene.narration, label="narration")
             if _texts_differ(value, scene.narration):
                 _apply_narration_change(project, scene, value)
 
@@ -387,8 +393,9 @@ def _render_script(engine: SceneBySceneEngine):
                                 scene.narration,
                                 topic=project.params.get("text"),
                             ))
+                        # The binders push the new model value into every
+                        # widget (this one included) on the next run.
                         _apply_narration_change(project, scene, rewritten)
-                        _queue_override(key, rewritten)
                         st.rerun()
                     except Exception as e:
                         logger.exception(e)
@@ -500,9 +507,7 @@ def _render_prefix_toggle(project):
         if new_prompt != scene.prompt:
             scene.prompt = new_prompt
             scene.invalidate_media()
-            _queue_override(f"sbs_prompt_{scene.uid}", new_prompt)
-            _queue_override(f"sbs_scene_prompt_{scene.uid}", new_prompt)
-    st.rerun()
+    st.rerun()   # the binders push the rewritten prompts into the widgets
 
 
 def _render_prompts(engine: SceneBySceneEngine):
@@ -529,8 +534,7 @@ def _render_prompts(engine: SceneBySceneEngine):
                 ))
             for scene, prompt in zip(missing, prompts):
                 scene.prompt = prompt
-                # Widgets for these scenes haven't been created yet this run
-                st.session_state[f"sbs_prompt_{scene.uid}"] = prompt
+            # The widget binders below pick the fresh prompts up from the scenes
         except Exception as e:
             logger.exception(e)
             st.error(tr("sbs.common.error", error=str(e)))
@@ -545,12 +549,10 @@ def _render_prompts(engine: SceneBySceneEngine):
             st.caption(f"🗣️ {scene.narration}")
 
             key = f"sbs_prompt_{scene.uid}"
-            value = _sync_text_widget(key, scene.prompt or "", height=100, label="prompt")
+            value = _bind_text(key, scene.prompt or "", height=100, label="prompt")
             if _texts_differ(value, scene.prompt):
                 scene.prompt = value
                 scene.invalidate_media()
-                # Keep the Scenes-step widget in sync
-                _queue_override(f"sbs_scene_prompt_{scene.uid}", value)
 
             if st.button(tr("sbs.prompts.regen_one"), key=f"sbs_rp_{scene.uid}"):
                 try:
@@ -560,8 +562,7 @@ def _render_prompts(engine: SceneBySceneEngine):
                         ))
                     scene.prompt = new_prompt
                     scene.invalidate_media()
-                    _queue_override(key, new_prompt)
-                    st.rerun()
+                    st.rerun()   # binders push the new prompt into the widgets
                 except Exception as e:
                     logger.exception(e)
                     st.error(tr("sbs.common.error", error=str(e)))
@@ -585,8 +586,7 @@ def _render_prompts(engine: SceneBySceneEngine):
                 for scene, prompt in zip(project.scenes, prompts):
                     scene.prompt = prompt
                     scene.invalidate_media()
-                    _queue_override(f"sbs_prompt_{scene.uid}", prompt)
-                st.rerun()
+                st.rerun()   # binders push the new prompts into the widgets
             except Exception as e:
                 logger.exception(e)
                 st.error(tr("sbs.common.error", error=str(e)))
@@ -632,24 +632,17 @@ def _render_scene_card(engine: SceneBySceneEngine, project, scene, index: int):
         with text_col:
             st.caption(tr("sbs.scenes.narration_label"))
             nkey = f"sbs_scene_narr_{scene.uid}"
-            if nkey not in st.session_state:
-                st.session_state[nkey] = scene.narration
-            nval = st.text_area("narration", key=nkey, height=80, label_visibility="collapsed")
+            nval = _bind_text(nkey, scene.narration, label="narration")
             if _texts_differ(nval, scene.narration):
                 _apply_narration_change(project, scene, nval)
-                # Keep the Script-step widget in sync
-                _queue_override(f"sbs_narr_{scene.uid}", nval)
 
             if project.needs_media:
                 st.caption(tr("sbs.scenes.prompt_label"))
                 pkey = f"sbs_scene_prompt_{scene.uid}"
-                if pkey not in st.session_state:
-                    st.session_state[pkey] = scene.prompt or ""
-                pval = st.text_area("prompt", key=pkey, height=100, label_visibility="collapsed")
+                pval = _bind_text(pkey, scene.prompt or "", height=100, label="prompt")
                 if _texts_differ(pval, scene.prompt):
                     scene.prompt = pval
                     scene.invalidate_media()
-                    _queue_override(f"sbs_prompt_{scene.uid}", pval)
 
             # ---- Action buttons ----
             def _run_step(spinner_key: str, coro_factory):
@@ -904,8 +897,6 @@ def _render_final(engine: SceneBySceneEngine):
 
 def render_scene_wizard(pixelle_video):
     """Render the scene-by-scene wizard (call after settings/header)."""
-    _apply_widget_overrides()
-
     engine = SceneBySceneEngine(pixelle_video)
     step = st.session_state.setdefault(K_STEP, 0)
     project = st.session_state.get(K_PROJECT)

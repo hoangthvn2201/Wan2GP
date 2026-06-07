@@ -49,6 +49,8 @@ class FlexConfig:
     allow_fallback: bool = True       # empty search -> fall back to generation
     search_only: bool = False         # stock-only: plan every scene as search and
                                       # never fall back to AI generation
+    generate_only: bool = False       # generate-only: never use stock search at all
+                                      # (takes precedence over search_only)
 
     @property
     def pexels_active(self) -> bool:
@@ -88,6 +90,7 @@ def load_flex_config(path: Optional[str] = None) -> FlexConfig:
         min_resolution=int(section.get("min_resolution", 720)),
         allow_fallback=bool(section.get("allow_fallback", True)),
         search_only=bool(section.get("search_only", False)),
+        generate_only=bool(section.get("generate_only", False)),
     )
 
     # Env vars beat the file (useful for deployments / keeping keys out of git)
@@ -112,6 +115,7 @@ def save_flex_config(config: FlexConfig, path: Optional[str] = None):
             "min_resolution": config.min_resolution,
             "allow_fallback": config.allow_fallback,
             "search_only": config.search_only,
+            "generate_only": config.generate_only,
         }
     }
     with open(config_path, "w", encoding="utf-8") as f:

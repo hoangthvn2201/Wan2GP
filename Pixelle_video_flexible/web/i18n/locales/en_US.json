@@ -673,6 +673,13 @@
     "flxw.scenes.genall_stop": "⏹ Stop after the current scene",
     "flxw.plan.gen_prompt_btn": "🎲 AI prompt",
     "flxw.plan.gen_prompt_regen_btn": "🎲 Regenerate prompt",
-    "flxw.plan.gen_prompt_help": "Write a media-generation prompt from this scene's narration (style prefix applied). Useful after switching a scene from stock search to AI generate — search scenes carry only keywords, no prompt."
+    "flxw.plan.gen_prompt_help": "Write a media-generation prompt from this scene's narration (style prefix applied). Useful after switching a scene from stock search to AI generate — search scenes carry only keywords, no prompt.",
+    "flxw.setup.sourcing_label": "🧭 Media sourcing",
+    "flxw.setup.sourcing_auto": "🤖 Auto — AI decides per scene",
+    "flxw.setup.sourcing_stock": "🔒 Stock-only (never generate)",
+    "flxw.setup.sourcing_generate": "🎨 Generate-only (no stock search)",
+    "flxw.setup.sourcing_help": "Auto: the AI picks stock search or AI generation per scene. Stock-only: every scene uses real stock media, no generation model is ever loaded (no GPU needed). Generate-only: stock search is never used — every scene is AI-generated and the Source Media step is skipped.",
+    "flxw.setup.sourcing_stock_needs_keys": "⚠️ Stock-only needs a Pexels/Pixabay API key — without one, scenes will be AI-generated anyway.",
+    "flxw.plan.generate_only_info": "🎨 Generate-only project — stock search is disabled; every scene is AI-generated and the Source Media step is skipped."
   }
 }

@@ -17,3 +17,5 @@ media_search:
   allow_fallback: true        # empty search results -> fall back to generation
   search_only: false          # true = stock-only: every scene searches, empty results
                               # retry with broader keywords, AI generation is never used
+  generate_only: false        # true = generate-only: stock search is never used at all
+                              # (takes precedence over search_only)

@@ -119,12 +119,26 @@ class FlexibleVideoEngine(SceneBySceneEngine):
         """'video' when scenes end up as clips, else 'image'."""
         return "video" if project.is_video_workflow else "image"
 
+    def _generate_only(self, project: SceneProject) -> bool:
+        """
+        Generate-only mode: stock search is never used at all — every scene is
+        AI-generated. Per-project override in params, falling back to
+        flex_config. Takes precedence over stock-only.
+        """
+        flag = project.params.get("generate_only")
+        if flag is None:
+            flag = self.flex_config.generate_only
+        return bool(flag)
+
     def _search_only(self, project: SceneProject) -> bool:
         """
         Stock-only mode: every scene searches, AI generation is never used
         (so no generation model is ever loaded). Per-project override in
-        params, falling back to flex_config; meaningless without providers.
+        params, falling back to flex_config; meaningless without providers
+        and overridden by generate-only.
         """
+        if self._generate_only(project):
+            return False
         flag = project.params.get("search_only")
         if flag is None:
             flag = self.flex_config.search_only
@@ -137,10 +151,11 @@ class FlexibleVideoEngine(SceneBySceneEngine):
         entry: dict,
         prompt_prefix: str = "",
         search_only: bool = False,
+        generate_only: bool = False,
     ):
         """Map one LLM plan entry onto a scene (capability rules enforced)."""
         source = str(entry.get("source") or "generate").lower()
-        if source == "search" and not self.aggregator.enabled:
+        if source == "search" and (generate_only or not self.aggregator.enabled):
             source = "generate"
         elif search_only and str(entry.get("search_query") or "").strip():
             source = "search"
@@ -178,11 +193,13 @@ class FlexibleVideoEngine(SceneBySceneEngine):
         """
         narrations = [s.narration for s in project.scenes]
         search_only = self._search_only(project)
+        generate_only = self._generate_only(project)
         prompt = build_scene_plan_prompt(
             narrations,
             title=project.title,
             media_capability=self._media_capability(project),
-            providers_enabled=self.aggregator.enabled,
+            # Generate-only reuses the "no providers -> all generate" prompt rule
+            providers_enabled=self.aggregator.enabled and not generate_only,
             min_words=min_words,
             max_words=max_words,
             search_only=search_only,
@@ -194,11 +211,17 @@ class FlexibleVideoEngine(SceneBySceneEngine):
                 raise ValueError(f"Expected {len(narrations)} plan entries, got {len(scenes)}")
             for i, entry in enumerate(scenes):
                 source = str(entry.get("source") or "").lower()
-                if (source == "search" or search_only) and \
-                        not str(entry.get("search_query") or "").strip():
-                    raise ValueError(f"Plan entry {i} needs a search_query")
-                if source == "generate" and not search_only and \
-                        not str(entry.get("gen_prompt") or "").strip():
+                query = str(entry.get("search_query") or "").strip()
+                gen_prompt = str(entry.get("gen_prompt") or "").strip()
+                if generate_only:
+                    if not gen_prompt:
+                        raise ValueError(f"Plan entry {i} needs a gen_prompt")
+                elif search_only:
+                    if not query:
+                        raise ValueError(f"Plan entry {i} needs a search_query")
+                elif source == "search" and not query:
+                    raise ValueError(f"Plan entry {i} is 'search' but has no search_query")
+                elif source == "generate" and not gen_prompt:
                     raise ValueError(f"Plan entry {i} is 'generate' but has no gen_prompt")
 
         result = await self._llm_json(
@@ -208,7 +231,8 @@ class FlexibleVideoEngine(SceneBySceneEngine):
 
         for scene, entry in zip(project.scenes, result["scenes"]):
             self._apply_plan_entry(project, scene, entry, prompt_prefix,
-                                   search_only=search_only)
+                                   search_only=search_only,
+                                   generate_only=generate_only)
 
         n_search = sum(1 for s in project.scenes if s.source == "search")
         logger.info(
@@ -227,11 +251,12 @@ class FlexibleVideoEngine(SceneBySceneEngine):
     ) -> FlexScene:
         """Re-plan the media sourcing of a single scene."""
         search_only = self._search_only(project)
+        generate_only = self._generate_only(project)
         prompt = build_scene_plan_prompt(
             [scene.narration],
             title=project.title,
             media_capability=self._media_capability(project),
-            providers_enabled=self.aggregator.enabled,
+            providers_enabled=self.aggregator.enabled and not generate_only,
             min_words=min_words,
             max_words=max_words,
             search_only=search_only,
@@ -240,7 +265,10 @@ class FlexibleVideoEngine(SceneBySceneEngine):
         def _check(result: dict):
             if len(result.get("scenes") or []) != 1:
                 raise ValueError("Expected exactly 1 plan entry")
-            if search_only and not str(result["scenes"][0].get("search_query") or "").strip():
+            entry = result["scenes"][0]
+            if generate_only and not str(entry.get("gen_prompt") or "").strip():
+                raise ValueError("Plan entry needs a gen_prompt")
+            if search_only and not str(entry.get("search_query") or "").strip():
                 raise ValueError("Plan entry needs a search_query")
 
         result = await self._llm_json(
@@ -248,7 +276,7 @@ class FlexibleVideoEngine(SceneBySceneEngine):
             label="Scene media re-plan", validate=_check,
         )
         self._apply_plan_entry(project, scene, result["scenes"][0], prompt_prefix,
-                               search_only=search_only)
+                               search_only=search_only, generate_only=generate_only)
         return scene
 
     # ==================== Step: Stock search ====================
@@ -275,6 +303,8 @@ class FlexibleVideoEngine(SceneBySceneEngine):
             raise ValueError("Scene has no search query — run the media plan first")
         if not self.aggregator.enabled:
             raise RuntimeError("No stock providers configured (see flex_config.yaml)")
+        if self._generate_only(project):
+            raise RuntimeError("Stock search is disabled for this project (generate-only)")
 
         search_kwargs = dict(
             media_type=scene.plan_media_type,

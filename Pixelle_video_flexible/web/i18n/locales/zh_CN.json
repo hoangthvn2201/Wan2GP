@@ -673,6 +673,13 @@
     "flxw.scenes.genall_stop": "⏹ 当前场景完成后停止",
     "flxw.plan.gen_prompt_btn": "🎲 AI 生成提示词",
     "flxw.plan.gen_prompt_regen_btn": "🎲 重新生成提示词",
-    "flxw.plan.gen_prompt_help": "根据该场景的旁白撰写媒体生成提示词（自动应用风格前缀）。把场景从素材搜索切换为 AI 生成后特别有用 —— 搜索场景只有关键词，没有提示词。"
+    "flxw.plan.gen_prompt_help": "根据该场景的旁白撰写媒体生成提示词（自动应用风格前缀）。把场景从素材搜索切换为 AI 生成后特别有用 —— 搜索场景只有关键词，没有提示词。",
+    "flxw.setup.sourcing_label": "🧭 媒体来源策略",
+    "flxw.setup.sourcing_auto": "🤖 自动 —— AI 逐场景决定",
+    "flxw.setup.sourcing_stock": "🔒 仅用素材（从不生成）",
+    "flxw.setup.sourcing_generate": "🎨 仅生成（不使用素材搜索）",
+    "flxw.setup.sourcing_help": "自动：AI 为每个场景选择素材搜索或 AI 生成。仅素材：所有场景使用真实素材，全程不加载生成模型（无需 GPU）。仅生成：完全不使用素材搜索 —— 所有场景均为 AI 生成，并跳过「素材获取」步骤。",
+    "flxw.setup.sourcing_stock_needs_keys": "⚠️ 仅素材模式需要 Pexels/Pixabay API Key —— 未配置时场景仍会使用 AI 生成。",
+    "flxw.plan.generate_only_info": "🎨 仅生成项目 —— 素材搜索已禁用；所有场景均为 AI 生成，并跳过「素材获取」步骤。"
   }
 }

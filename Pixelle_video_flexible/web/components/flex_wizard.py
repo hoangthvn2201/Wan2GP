@@ -50,7 +50,6 @@ from flexvid.project_io import find_latest_saved_project, load_project, save_pro
 K_STEP = "flxw_step"
 K_PROJECT = "flxw_project"
 K_RESULT = "flxw_result"
-K_OVERRIDES = "flxw_widget_overrides"
 K_SETUP = "flxw_setup_params"   # frozen setup params (topic, style, language, ...)
 K_GENALL = "flxw_genall"        # "Generate All" runs one scene per rerun while set
 
@@ -62,36 +61,21 @@ SCENES_STEP = 4
 
 
 # ============================================================================
-# Widget-state helpers (same pattern as the scene-by-scene / PDF wizards)
+# Widget-state helpers
+#
+# Model state (the project / scenes) is the single source of truth; widgets
+# are bound to it through _bind_text/_bind_choice below, which detect whether
+# the MODEL or the WIDGET moved since the last render. The older wizards'
+# override-queue pattern is not needed here.
 # ============================================================================
 
-def _apply_widget_overrides():
-    """
-    Apply queued widget value overrides BEFORE any flxw widget is created.
-
-    Streamlit forbids writing `st.session_state[key]` of a widget after it was
-    instantiated in the same run, so programmatic updates (AI rewrite, re-plan,
-    regenerated prompt, ...) are queued here and applied at the top of the
-    next run.
-    """
-    overrides = st.session_state.get(K_OVERRIDES) or {}
-    for key, value in overrides.items():
-        st.session_state[key] = value
-    st.session_state[K_OVERRIDES] = {}
-
-
-def _queue_override(key: str, value):
-    overrides = st.session_state.setdefault(K_OVERRIDES, {})
-    overrides[key] = value
-
-
 def _clear_project_widget_state():
-    """Drop per-scene widget state from a previous project."""
+    """Drop per-scene widget state (and binder companions) from a previous project."""
     for key in list(st.session_state.keys()):
         if key.startswith(("flxw_narr_", "flxw_query_", "flxw_prompt_", "flxw_src_",
-                           "flxw_mt_", "flxw_scene_narr_", "flxw_scene_prompt_")):
+                           "flxw_mt_", "flxw_scene_narr_", "flxw_scene_prompt_",
+                           "flxw_title_w")):
             del st.session_state[key]
-    st.session_state.pop("flxw_title_w", None)
     st.session_state.pop(K_RESULT, None)
 
 
@@ -119,11 +103,48 @@ def _goto(step: int):
     st.rerun()
 
 
-def _sync_text_widget(key: str, current_value: str, height: int = 80, label: str = "text"):
-    """Render a text_area bound to `key` and return its (possibly edited) value."""
+def _bind_text(key: str, model_value: str, *, height: int = 80, label: str = "text",
+               input_widget: bool = False, label_visibility: str = "collapsed"):
+    """
+    Text widget two-way bound to a model value, immune to stale widget state.
+
+    A plain `if widget != model: model = widget` treats ANY mismatch as a user
+    edit — but a mismatch can equally mean the MODEL was changed elsewhere
+    (an edit on another step, AI rewrite, re-plan, resume) while this widget
+    kept a stale copy; writing that stale copy back silently REVERTS the
+    change (the "lost my script" bug). A companion key remembers the model
+    value this widget was last synced to, so the two directions can be told
+    apart: model moved -> push the model into the widget (never apply the
+    stale copy); widget moved -> return the edit for the caller to apply.
+    """
+    sync_key = key + "__synced"
+    model_value = model_value or ""
+    last_synced = st.session_state.get(sync_key)
     if key not in st.session_state:
-        st.session_state[key] = current_value
-    return st.text_area(label, key=key, height=height, label_visibility="collapsed")
+        # First render (or Streamlit dropped the unrendered widget's state)
+        st.session_state[key] = model_value
+    elif last_synced is None or _texts_differ(last_synced, model_value):
+        # The model changed since this widget last rendered: its copy is stale
+        st.session_state[key] = model_value
+    st.session_state[sync_key] = model_value
+    if input_widget:
+        return st.text_input(label, key=key, label_visibility=label_visibility)
+    return st.text_area(label, key=key, height=height, label_visibility=label_visibility)
+
+
+def _bind_choice(key: str, model_value):
+    """
+    Pre-sync a choice widget (radio, ...) exactly like _bind_text: a stale
+    widget copy must never overwrite a model value that changed elsewhere
+    (e.g. a re-planned source). Call BEFORE instantiating the widget.
+    """
+    sync_key = key + "__synced"
+    last_synced = st.session_state.get(sync_key)
+    if key not in st.session_state:
+        st.session_state[key] = model_value
+    elif last_synced is None or last_synced != model_value:
+        st.session_state[key] = model_value
+    st.session_state[sync_key] = model_value
 
 
 def _texts_differ(a: str, b: str) -> bool:
@@ -152,7 +173,9 @@ def _render_stepper(step: int, project):
     for i, (name, icon) in enumerate(zip(STEPS, STEP_ICONS)):
         label = f"{icon} {tr(f'flxw.stepper.{name}')}"
         skipped = (i in (PLAN_STEP, SOURCE_STEP)
-                   and project is not None and not project.needs_media)
+                   and project is not None and not project.needs_media) \
+            or (i == SOURCE_STEP and project is not None
+                and project.params.get("generate_only"))
         revisitable = i < step and not skipped and project is not None
         with cols[i]:
             if i == step:
@@ -232,7 +255,7 @@ _LANGUAGE_CHOICES = [
 
 
 def _render_providers_panel(engine: FlexibleVideoEngine) -> dict:
-    """Stock-search status (which providers are configured) + stock-only toggle."""
+    """Stock-search status (which providers are configured) + sourcing mode."""
     with st.container(border=True):
         st.markdown(f"**{tr('flxw.setup.providers_label')}**")
         if engine.aggregator.enabled:
@@ -242,14 +265,29 @@ def _render_providers_panel(engine: FlexibleVideoEngine) -> dict:
             st.warning(tr("flxw.setup.providers_none"))
         st.caption(tr("flxw.setup.providers_hint"))
 
-        search_only = st.toggle(
-            tr("flxw.setup.search_only_label"),
-            value=engine.flex_config.search_only and engine.aggregator.enabled,
-            help=tr("flxw.setup.search_only_help"),
-            key="flxw_setup_search_only",
-            disabled=not engine.aggregator.enabled,
+        # 🤖 auto (LLM decides per scene) / 🔒 stock-only / 🎨 generate-only
+        if engine.flex_config.generate_only:
+            default_mode = "generate"
+        elif engine.flex_config.search_only and engine.aggregator.enabled:
+            default_mode = "stock"
+        else:
+            default_mode = "auto"
+        mode_key = "flxw_setup_sourcing"
+        if mode_key not in st.session_state:
+            st.session_state[mode_key] = default_mode
+        mode = st.radio(
+            tr("flxw.setup.sourcing_label"),
+            ["auto", "stock", "generate"],
+            format_func=lambda x: tr(f"flxw.setup.sourcing_{x}"),
+            help=tr("flxw.setup.sourcing_help"),
+            key=mode_key,
         )
-    return {"search_only": bool(search_only) and engine.aggregator.enabled}
+        if mode == "stock" and not engine.aggregator.enabled:
+            st.caption(tr("flxw.setup.sourcing_stock_needs_keys"))
+    return {
+        "search_only": mode == "stock" and engine.aggregator.enabled,
+        "generate_only": mode == "generate",
+    }
 
 
 def _render_resume_saved(engine: FlexibleVideoEngine):
@@ -377,6 +415,7 @@ def _render_setup(engine: FlexibleVideoEngine):
                     "tts_normalize": tts_normalize,
                     # --- Media sourcing ---
                     "search_only": provider_params.get("search_only", False),
+                    "generate_only": provider_params.get("generate_only", False),
                     # --- Provenance ---
                     "flex_language": None if language == "auto" else language,
                     "flex_providers": engine.aggregator.provider_names,
@@ -434,11 +473,11 @@ def _render_script(engine: FlexibleVideoEngine):
     st.caption(tr("flxw.script.hint"))
 
     # ---- Title ----
-    if "flxw_title_w" not in st.session_state:
-        st.session_state["flxw_title_w"] = project.title
-    new_title = st.text_input(tr("sbs.script.title_label"), key="flxw_title_w")
-    if new_title.strip() and new_title != project.title:
-        project.title = new_title
+    new_title = _bind_text("flxw_title_w", project.title,
+                           label=tr("sbs.script.title_label"),
+                           input_widget=True, label_visibility="visible")
+    if new_title.strip() and _texts_differ(new_title, project.title):
+        project.title = new_title.strip()
 
     # ---- Scenes ----
     for i, scene in enumerate(list(project.scenes)):
@@ -446,13 +485,9 @@ def _render_script(engine: FlexibleVideoEngine):
             st.markdown(f"**{tr('sbs.script.scene_label', n=i + 1)}**")
 
             key = f"flxw_narr_{scene.uid}"
-            value = _sync_text_widget(key, scene.narration)
+            value = _bind_text(key, scene.narration)
             if _texts_differ(value, scene.narration):
                 _apply_narration_change(project, scene, value)
-                # Keep the Scenes-step widget in sync — a stale copy there
-                # would silently revert this edit (and re-invalidate audio)
-                # the next time the Scenes step renders.
-                _queue_override(f"flxw_scene_narr_{scene.uid}", value)
 
             c1, c2, _sp = st.columns([1, 1, 2])
             with c1:
@@ -464,9 +499,9 @@ def _render_script(engine: FlexibleVideoEngine):
                                 scene.narration,
                                 topic=project.params.get("text"),
                             ))
+                        # The binders push the new model value into every
+                        # widget (this one included) on the next run.
                         _apply_narration_change(project, scene, rewritten)
-                        _queue_override(key, rewritten)
-                        _queue_override(f"flxw_scene_narr_{scene.uid}", rewritten)
                         st.rerun()
                     except Exception as e:
                         logger.exception(e)
@@ -530,15 +565,6 @@ def _apply_source_change(scene: FlexScene, source: str):
     scene.invalidate_media()
 
 
-def _queue_plan_widgets(scene: FlexScene):
-    """Sync the plan-step widgets of a scene after a programmatic re-plan."""
-    _queue_override(f"flxw_src_{scene.uid}", scene.source)
-    _queue_override(f"flxw_mt_{scene.uid}", scene.plan_media_type)
-    _queue_override(f"flxw_query_{scene.uid}", scene.search_query or "")
-    _queue_override(f"flxw_prompt_{scene.uid}", scene.prompt or "")
-    _queue_override(f"flxw_scene_prompt_{scene.uid}", scene.prompt or "")
-
-
 def _render_ai_prompt_button(engine: FlexibleVideoEngine, project, scene, key: str):
     """
     "🎲 AI prompt" — (re)write this scene's generation prompt from its
@@ -556,9 +582,7 @@ def _render_ai_prompt_button(engine: FlexibleVideoEngine, project, scene, key: s
                 ))
             scene.prompt = new_prompt
             scene.invalidate_media()
-            _queue_override(f"flxw_prompt_{scene.uid}", new_prompt)
-            _queue_override(f"flxw_scene_prompt_{scene.uid}", new_prompt)
-            st.rerun()
+            st.rerun()   # the binders push the new prompt into the widgets
         except Exception as e:
             logger.exception(e)
             st.error(tr("sbs.common.error", error=str(e)))
@@ -573,7 +597,10 @@ def _render_plan(engine: FlexibleVideoEngine):
 
     st.markdown(f"#### {tr('flxw.plan.heading')}")
     st.caption(tr("flxw.plan.hint"))
-    if not engine.aggregator.enabled:
+    generate_only = engine._generate_only(project)
+    if generate_only:
+        st.info(tr("flxw.plan.generate_only_info"))
+    elif not engine.aggregator.enabled:
         st.info(tr("flxw.plan.no_providers_info"))
     elif project.params.get("search_only"):
         st.info(tr("flxw.plan.search_only_info"))
@@ -585,12 +612,7 @@ def _render_plan(engine: FlexibleVideoEngine):
         try:
             with st.spinner(tr("flxw.script.planning")):
                 run_async(engine.generate_scene_plan(project, prompt_prefix=prompt_prefix))
-            for scene in project.scenes:
-                # Widgets for these scenes haven't been created yet this run
-                st.session_state[f"flxw_src_{scene.uid}"] = scene.source
-                st.session_state[f"flxw_mt_{scene.uid}"] = scene.plan_media_type
-                st.session_state[f"flxw_query_{scene.uid}"] = scene.search_query or ""
-                st.session_state[f"flxw_prompt_{scene.uid}"] = scene.prompt or ""
+            # The widget binders below pick the fresh plan up from the scenes.
         except Exception as e:
             logger.exception(e)
             st.error(tr("sbs.common.error", error=str(e)))
@@ -609,15 +631,14 @@ def _render_plan(engine: FlexibleVideoEngine):
             src_col, mt_col, btn_col = st.columns([2, 2, 1])
             with src_col:
                 src_key = f"flxw_src_{scene.uid}"
-                if src_key not in st.session_state:
-                    st.session_state[src_key] = scene.source
+                _bind_choice(src_key, scene.source)
                 source = st.radio(
                     tr("flxw.plan.source_label"),
                     ["generate", "search"],
                     horizontal=True,
                     format_func=lambda x: tr(f"flxw.plan.source_{x}"),
                     key=src_key,
-                    disabled=not engine.aggregator.enabled,
+                    disabled=not engine.aggregator.enabled or generate_only,
                 )
                 if source != scene.source:
                     _apply_source_change(scene, source)
@@ -625,8 +646,7 @@ def _render_plan(engine: FlexibleVideoEngine):
             with mt_col:
                 if is_video_project and scene.source == "search":
                     mt_key = f"flxw_mt_{scene.uid}"
-                    if mt_key not in st.session_state:
-                        st.session_state[mt_key] = scene.plan_media_type
+                    _bind_choice(mt_key, scene.plan_media_type)
                     media_type = st.radio(
                         tr("flxw.plan.media_type_label"),
                         ["video", "image"],
@@ -646,8 +666,7 @@ def _render_plan(engine: FlexibleVideoEngine):
                             run_async(engine.regenerate_plan_for(
                                 project, scene, prompt_prefix=prompt_prefix
                             ))
-                        _queue_plan_widgets(scene)
-                        st.rerun()
+                        st.rerun()   # binders push the new plan into the widgets
                     except Exception as e:
                         logger.exception(e)
                         st.error(tr("sbs.common.error", error=str(e)))
@@ -655,20 +674,18 @@ def _render_plan(engine: FlexibleVideoEngine):
             if scene.source == "search":
                 st.caption(tr("flxw.plan.query_label"))
                 qkey = f"flxw_query_{scene.uid}"
-                if qkey not in st.session_state:
-                    st.session_state[qkey] = scene.search_query or ""
-                qval = st.text_input("query", key=qkey, label_visibility="collapsed")
+                qval = _bind_text(qkey, scene.search_query or "",
+                                  label="query", input_widget=True)
                 if _texts_differ(qval, scene.search_query or ""):
                     scene.search_query = qval.strip() or None
                     scene.invalidate_search()
             else:
                 st.caption(tr("flxw.plan.prompt_label"))
                 pkey = f"flxw_prompt_{scene.uid}"
-                pval = _sync_text_widget(pkey, scene.prompt or "", height=100, label="prompt")
+                pval = _bind_text(pkey, scene.prompt or "", height=100, label="prompt")
                 if _texts_differ(pval, scene.prompt or ""):
                     scene.prompt = pval
                     scene.invalidate_media()
-                    _queue_override(f"flxw_scene_prompt_{scene.uid}", pval)
                 # Switched from search to generate? The scene has no prompt
                 # yet — write one from the narration with a click.
                 _render_ai_prompt_button(engine, project, scene,
@@ -690,9 +707,7 @@ def _render_plan(engine: FlexibleVideoEngine):
             try:
                 with st.spinner(tr("flxw.script.planning")):
                     run_async(engine.generate_scene_plan(project, prompt_prefix=prompt_prefix))
-                for scene in project.scenes:
-                    _queue_plan_widgets(scene)
-                st.rerun()
+                st.rerun()   # binders push the new plan into the widgets
             except Exception as e:
                 logger.exception(e)
                 st.error(tr("sbs.common.error", error=str(e)))
@@ -706,7 +721,8 @@ def _render_plan(engine: FlexibleVideoEngine):
                      for s in project.scenes):
                 st.error(tr("flxw.plan.empty_prompt_warning"))
             else:
-                _goto(SOURCE_STEP)
+                # Generate-only: nothing to source, go straight to Scenes
+                _goto(SCENES_STEP if generate_only else SOURCE_STEP)
 
 
 # ============================================================================
@@ -751,11 +767,10 @@ def _render_generate_prompt_editor(engine: FlexibleVideoEngine, project, scene,
     """Prompt editor for generate / fallen-back scenes on the Source step."""
     st.caption(tr(label_key))
     pkey = f"flxw_prompt_{scene.uid}"
-    pval = _sync_text_widget(pkey, scene.prompt or "", height=100, label="prompt")
+    pval = _bind_text(pkey, scene.prompt or "", height=100, label="prompt")
     if _texts_differ(pval, scene.prompt or ""):
         scene.prompt = pval
         scene.invalidate_media()
-        _queue_override(f"flxw_scene_prompt_{scene.uid}", pval)
     _render_ai_prompt_button(engine, project, scene,
                              key=f"flxw_src_genprompt_{scene.uid}")
 
@@ -838,7 +853,7 @@ def _render_source(engine: FlexibleVideoEngine):
     project = st.session_state.get(K_PROJECT)
     if project is None:
         _goto(0)
-    if not project.needs_media:
+    if not project.needs_media or engine._generate_only(project):
         _goto(SCENES_STEP)
 
     st.markdown(f"#### {tr('flxw.source.heading')}")
@@ -948,24 +963,17 @@ def _render_scene_card(engine: FlexibleVideoEngine, project, scene, index: int):
         with text_col:
             st.caption(tr("sbs.scenes.narration_label"))
             nkey = f"flxw_scene_narr_{scene.uid}"
-            if nkey not in st.session_state:
-                st.session_state[nkey] = scene.narration
-            nval = st.text_area("narration", key=nkey, height=80, label_visibility="collapsed")
+            nval = _bind_text(nkey, scene.narration, label="narration")
             if _texts_differ(nval, scene.narration):
                 _apply_narration_change(project, scene, nval)
-                # Keep the Script-step widget in sync
-                _queue_override(f"flxw_narr_{scene.uid}", nval)
 
             if project.needs_media and not is_search:
                 st.caption(tr("sbs.scenes.prompt_label"))
                 pkey = f"flxw_scene_prompt_{scene.uid}"
-                if pkey not in st.session_state:
-                    st.session_state[pkey] = scene.prompt or ""
-                pval = st.text_area("prompt", key=pkey, height=100, label_visibility="collapsed")
+                pval = _bind_text(pkey, scene.prompt or "", height=100, label="prompt")
                 if _texts_differ(pval, scene.prompt):
                     scene.prompt = pval
                     scene.invalidate_media()
-                    _queue_override(f"flxw_prompt_{scene.uid}", pval)
             elif is_search:
                 st.caption(f"{tr('flxw.plan.query_label')}: `{scene.search_query}`")
                 if scene.attribution:
@@ -1159,7 +1167,12 @@ def _render_scenes(engine: FlexibleVideoEngine):
     c_back, c_next = st.columns([1, 2])
     with c_back:
         if st.button(tr("sbs.nav.back"), key="flxw_scenes_back", use_container_width=True):
-            _goto(SOURCE_STEP if project.needs_media else 1)
+            if not project.needs_media:
+                _goto(1)
+            elif engine._generate_only(project):
+                _goto(PLAN_STEP)
+            else:
+                _goto(SOURCE_STEP)
     with c_next:
         all_ready = project.all_segments_ready
         if st.button(tr("sbs.scenes.continue"), key="flxw_scenes_next", type="primary",
@@ -1274,8 +1287,6 @@ def _render_final(engine: FlexibleVideoEngine):
 
 def render_flex_wizard(pixelle_video):
     """Render the flexible (generate-or-search) wizard (call after settings/header)."""
-    _apply_widget_overrides()
-
     engine = FlexibleVideoEngine(pixelle_video, load_flex_config())
     step = st.session_state.setdefault(K_STEP, 0)
     project = st.session_state.get(K_PROJECT)
