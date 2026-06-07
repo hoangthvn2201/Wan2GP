@@ -1,0 +1,5 @@
+# Extras on top of Wan2GP's requirements.txt (fastapi, pydantic, Pillow
+# are already pulled in by Wan2GP itself).
+fastapi
+uvicorn[standard]
+python-multipart
