@@ -508,6 +508,16 @@
     "selfhost.warning.title": "您选择了 SelfHost（本地）工作流，请务必先确认以下事项：",
     "selfhost.warning.message": "1. 请先在您的 ComfyUI 环境（{comfyui_url}）中**单独加载并运行** `{workflow_path}` 工作流\n2. 确保该工作流**能够正常运行完成**，没有节点缺失或模型缺失等错误\n3. 工作流调试通过后，再回到本项目使用",
     "selfhost.warning.hint": "⚠️ 如果您没有在 ComfyUI 中跑通该工作流，后续运行**一定会失败**（通常报 400 错误）！请勿跳过此步骤。",
-    "selfhost.warning.confirm": "我已了解，继续使用"
+    "selfhost.warning.confirm": "我已了解，继续使用",
+    "std.import.expander": "📥 分镜素材导入（可选）",
+    "std.import.hint": "先准备脚本，然后为任意分镜上传自己的图片或视频。未上传的分镜照常生成。",
+    "std.import.prepare_btn": "📝 准备分镜",
+    "std.import.preparing": "正在准备脚本...",
+    "std.import.reprepare_btn": "🔄 重新准备",
+    "std.import.clear_btn": "🗑️ 清除",
+    "std.import.stale_warning": "输入内容已变化 — 请重新准备脚本，否则下方导入将被忽略。",
+    "std.import.scene_label": "分镜 {n}",
+    "std.import.uploader_label": "该分镜的图片或视频",
+    "std.import.summary": "{count} 个分镜将使用导入的素材"
   }
 }

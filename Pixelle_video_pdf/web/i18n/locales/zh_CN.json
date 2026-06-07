@@ -645,6 +645,11 @@
     "pdfw.setup.tts_normalize_label": "响度标准化（-16 LUFS）",
     "pdfw.setup.tts_normalize_help": "将 TTS 配音提升到短视频标准响度，与所用音色/后端无关。可解决解说声音过小的问题 —— 建议保持开启。",
     "pdfw.setup.tts_volume_label": "额外增益",
-    "pdfw.setup.tts_volume_help": "在标准化之后再叠加的线性增益（1.0 = 不变，1.5 = +50%）。带限幅器防止破音。开启标准化时通常无需调整。"
+    "pdfw.setup.tts_volume_help": "在标准化之后再叠加的线性增益（1.0 = 不变，1.5 = +50%）。带限幅器防止破音。开启标准化时通常无需调整。",
+    "sbs.scenes.import_label": "📥 使用我自己的图片/视频",
+    "sbs.scenes.import_hint": "文件会被裁剪/转码到项目尺寸；视频会按口播时长补帧或裁剪。",
+    "sbs.scenes.import_apply": "📥 使用该文件",
+    "sbs.scenes.import_applying": "正在导入素材...",
+    "sbs.scenes.import_active": "✅ 当前使用导入的素材"
   }
 }

@@ -44,6 +44,12 @@ from web.components.content_input import render_bgm_section
 from web.components.style_config import render_style_config
 
 from pixelle_video.config import config_manager
+from pixelle_video.utils.imported_media import (
+    IMAGE_EXTENSIONS,
+    VIDEO_EXTENSIONS,
+    cleanup_raw,
+)
+from pixelle_video.utils.os_util import get_task_path
 
 from sbs import Scene
 from pdfv import PdfVideoEngine
@@ -82,7 +88,7 @@ def _clear_project_widget_state():
     """Drop per-scene widget state (and binder companions) from a previous project."""
     for key in list(st.session_state.keys()):
         if key.startswith(("pdfw_narr_", "pdfw_prompt_", "pdfw_scene_narr_",
-                           "pdfw_scene_prompt_", "pdfw_title_w")):
+                           "pdfw_scene_prompt_", "pdfw_title_w", "pdfw_import_")):
             del st.session_state[key]
     st.session_state.pop(K_RESULT, None)
 
@@ -575,9 +581,13 @@ def _apply_narration_change(project, scene, value: str):
     """
     Narration changed -> audio is stale; video clips are length-synced to the
     audio, so they go stale too (i2v keeps its still-valid start image).
+    Imported media is NOT length-synced (the segment step pads/trims it),
+    so it survives narration edits.
     """
     scene.narration = value
     scene.invalidate_audio()
+    if scene.media_origin == "imported":
+        return
     if project.is_i2v:
         scene.invalidate_video()
     elif project.is_video_workflow:
@@ -837,7 +847,9 @@ def _render_prompts(engine: PdfVideoEngine):
 
 def _scene_status_icons(project, scene) -> str:
     parts = [f"🎤{'✅' if scene.audio_path else '⬜'}"]
-    if project.is_i2v:
+    if scene.media_origin == "imported" and scene.has_media:
+        parts.append("📥✅")
+    elif project.is_i2v:
         # image → video: the still and the animated clip are separate steps
         parts.append(f"🖼️{'✅' if scene.image_path else '⬜'}")
         parts.append(f"🎬{'✅' if scene.video_path else '⬜'}")
@@ -846,6 +858,55 @@ def _scene_status_icons(project, scene) -> str:
         parts.append(f"{media_icon}{'✅' if scene.has_media else '⬜'}")
     parts.append(f"🎞️{'✅' if scene.segment_path else '⬜'}")
     return " ".join(parts)
+
+
+def _save_uploaded_media(project, scene, uploaded) -> str:
+    """Write an upload next to the scene assets as a raw temp file."""
+    ext = os.path.splitext(uploaded.name)[1].lower() or ".bin"
+    raw_path = get_task_path(project.task_id, "frames", f"{scene.uid}_import_raw{ext}")
+    os.makedirs(os.path.dirname(raw_path), exist_ok=True)
+    with open(raw_path, "wb") as f:
+        f.write(uploaded.getbuffer())
+    return raw_path
+
+
+def _render_import_control(engine, project, scene, index: int):
+    """
+    Upload control: use your own image/video for this scene instead of
+    generating it (the engine normalizes the file into the canonical
+    scene asset; clips are padded/trimmed to the narration at segment time).
+    """
+    imported = scene.media_origin == "imported" and scene.has_media
+    with st.expander(tr("sbs.scenes.import_label", "📥 Use my own image/video"),
+                     expanded=False):
+        st.caption(tr("sbs.scenes.import_hint",
+                      "The file is cropped/re-encoded to the project size; video "
+                      "clips are padded or trimmed to the narration length."))
+        uploaded = st.file_uploader(
+            "import media",
+            type=[e.lstrip(".") for e in IMAGE_EXTENSIONS + VIDEO_EXTENSIONS],
+            key=f"pdfw_import_file_{scene.uid}",
+            label_visibility="collapsed",
+        )
+        if st.button(tr("sbs.scenes.import_apply", "📥 Use this file"),
+                     key=f"pdfw_import_btn_{scene.uid}",
+                     use_container_width=True, disabled=uploaded is None):
+            try:
+                with st.spinner(tr("sbs.scenes.import_applying", "Importing media...")):
+                    raw_path = _save_uploaded_media(project, scene, uploaded)
+                    try:
+                        run_async(engine.import_media(
+                            project, scene, index,
+                            raw_path, original_name=uploaded.name,
+                        ))
+                    finally:
+                        cleanup_raw(raw_path)
+                st.rerun()
+            except Exception as e:
+                logger.exception(e)
+                st.error(tr("sbs.common.error", error=str(e)))
+        if imported:
+            st.caption(tr("sbs.scenes.import_active", "✅ Currently using imported media"))
 
 
 def _render_scene_card(engine: PdfVideoEngine, project, scene, index: int):
@@ -946,6 +1007,10 @@ def _render_scene_card(engine: PdfVideoEngine, project, scene, index: int):
                              help=None if seg_ready else tr("sbs.scenes.segment_requirements")):
                     _run_step("sbs.scenes.stage_segment",
                               lambda: engine.render_segment(project, scene, index))
+
+            # ---- Import your own media (alternative to generation) ----
+            if project.needs_media:
+                _render_import_control(engine, project, scene, index)
 
         # ---- Previews (bytes-based so regenerated files refresh properly) ----
         with preview_col:

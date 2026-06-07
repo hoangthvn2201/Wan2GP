@@ -680,6 +680,13 @@
     "flxw.setup.sourcing_generate": "🎨 仅生成（不使用素材搜索）",
     "flxw.setup.sourcing_help": "自动：AI 为每个场景选择素材搜索或 AI 生成。仅素材：所有场景使用真实素材，全程不加载生成模型（无需 GPU）。仅生成：完全不使用素材搜索 —— 所有场景均为 AI 生成，并跳过「素材获取」步骤。",
     "flxw.setup.sourcing_stock_needs_keys": "⚠️ 仅素材模式需要 Pexels/Pixabay API Key —— 未配置时场景仍会使用 AI 生成。",
-    "flxw.plan.generate_only_info": "🎨 仅生成项目 —— 素材搜索已禁用；所有场景均为 AI 生成，并跳过「素材获取」步骤。"
+    "flxw.plan.generate_only_info": "🎨 仅生成项目 —— 素材搜索已禁用；所有场景均为 AI 生成，并跳过「素材获取」步骤。",
+    "flxw.source.import_expander": "📥 使用我自己的图片/视频",
+    "flxw.source.import_hint": "文件会被裁剪/转码到项目尺寸；视频会按口播时长补帧或裁剪。",
+    "flxw.source.import_apply": "📥 使用该文件",
+    "flxw.source.import_applying": "正在导入素材...",
+    "flxw.source.import_ready": "✅ 已应用导入的素材",
+    "flxw.scenes.source_import_badge": "📥 已导入",
+    "flxw.scenes.import_caption": "📥 使用你导入的素材（可在「素材来源」步骤重新导入）"
   }
 }

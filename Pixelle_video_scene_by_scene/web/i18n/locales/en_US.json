@@ -590,6 +590,11 @@
     "sbs.scenes.start_frame_caption": "🖼️ Start frame",
     "sbs.prompts.use_prefix": "✨ Apply style prefix",
     "sbs.prompts.use_prefix_help": "When on, the style prefix from the visual settings is prepended to every media prompt (and used for regeneration). Toggling rewrites the prompts below instantly — no AI call.",
-    "sbs.prompts.prefix_preview": "Style prefix: `{prefix}`"
+    "sbs.prompts.prefix_preview": "Style prefix: `{prefix}`",
+    "sbs.scenes.import_label": "📥 Use my own image/video",
+    "sbs.scenes.import_hint": "The file is cropped/re-encoded to the project size; video clips are padded or trimmed to the narration length.",
+    "sbs.scenes.import_apply": "📥 Use this file",
+    "sbs.scenes.import_applying": "Importing media...",
+    "sbs.scenes.import_active": "✅ Currently using imported media"
   }
 }

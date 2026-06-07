@@ -42,6 +42,12 @@ from web.components.content_input import render_bgm_section
 from web.components.style_config import render_style_config
 
 from pixelle_video.config import config_manager
+from pixelle_video.utils.imported_media import (
+    IMAGE_EXTENSIONS,
+    VIDEO_EXTENSIONS,
+    cleanup_raw,
+)
+from pixelle_video.utils.os_util import get_task_path
 
 from flexvid import FlexibleVideoEngine, FlexScene, load_flex_config
 from flexvid.project_io import find_latest_saved_project, load_project, save_project
@@ -74,7 +80,7 @@ def _clear_project_widget_state():
     for key in list(st.session_state.keys()):
         if key.startswith(("flxw_narr_", "flxw_query_", "flxw_prompt_", "flxw_src_",
                            "flxw_mt_", "flxw_scene_narr_", "flxw_scene_prompt_",
-                           "flxw_title_w")):
+                           "flxw_title_w", "flxw_import_")):
             del st.session_state[key]
     st.session_state.pop(K_RESULT, None)
 
@@ -449,13 +455,14 @@ def _apply_narration_change(project, scene, value: str):
     """
     Narration changed -> audio is stale. GENERATED video clips are
     length-synced to the audio, so they go stale too (i2v keeps its
-    still-valid start image). Stock media is NOT length-synced (the segment
-    step pads/trims it to the narration), so applied search media survives.
+    still-valid start image). Stock and imported media are NOT length-synced
+    (the segment step pads/trims them to the narration), so they survive.
     """
     scene.narration = value
     scene.invalidate_audio()
-    is_search = isinstance(scene, FlexScene) and scene.is_search
-    if is_search:
+    if isinstance(scene, FlexScene) and (scene.is_search or scene.is_import):
+        return
+    if scene.media_origin == "imported":
         return
     if project.is_i2v:
         scene.invalidate_video()
@@ -775,11 +782,82 @@ def _render_generate_prompt_editor(engine: FlexibleVideoEngine, project, scene,
                              key=f"flxw_src_genprompt_{scene.uid}")
 
 
+def _save_uploaded_media(project, scene, uploaded) -> str:
+    """Write an upload next to the scene assets as a raw temp file."""
+    ext = os.path.splitext(uploaded.name)[1].lower() or ".bin"
+    raw_path = get_task_path(project.task_id, "frames", f"{scene.uid}_import_raw{ext}")
+    os.makedirs(os.path.dirname(raw_path), exist_ok=True)
+    with open(raw_path, "wb") as f:
+        f.write(uploaded.getbuffer())
+    return raw_path
+
+
+def _render_import_control(engine: FlexibleVideoEngine, project, scene, index: int):
+    """
+    Upload control: use your own image/video for this scene instead of
+    generating or searching (the engine normalizes the file into the
+    canonical scene asset and flips the scene's source to 'import').
+    """
+    with st.expander(tr("flxw.source.import_expander", "📥 Use my own image/video"),
+                     expanded=False):
+        st.caption(tr("flxw.source.import_hint",
+                      "The file is cropped/re-encoded to the project size; video "
+                      "clips are padded or trimmed to the narration length."))
+        uploaded = st.file_uploader(
+            "import media",
+            type=[e.lstrip(".") for e in IMAGE_EXTENSIONS + VIDEO_EXTENSIONS],
+            key=f"flxw_import_file_{scene.uid}",
+            label_visibility="collapsed",
+        )
+        if st.button(tr("flxw.source.import_apply", "📥 Use this file"),
+                     key=f"flxw_import_btn_{scene.uid}",
+                     use_container_width=True, disabled=uploaded is None):
+            try:
+                with st.spinner(tr("flxw.source.import_applying", "Importing media...")):
+                    raw_path = _save_uploaded_media(project, scene, uploaded)
+                    try:
+                        run_async(engine.import_media(
+                            project, scene, index,
+                            raw_path, original_name=uploaded.name,
+                        ))
+                    finally:
+                        cleanup_raw(raw_path)
+                st.rerun()
+            except Exception as e:
+                logger.exception(e)
+                st.error(tr("sbs.common.error", error=str(e)))
+
+
+def _source_badge(scene) -> str:
+    if scene.is_import:
+        return tr("flxw.scenes.source_import_badge", "📥 Imported")
+    if scene.is_search:
+        return tr("flxw.scenes.source_search_badge")
+    return tr("flxw.scenes.source_generate_badge")
+
+
 def _render_source_scene(engine: FlexibleVideoEngine, project, scene, index: int):
     with st.container(border=True):
         st.markdown(f"**{tr('sbs.script.scene_label', n=index + 1)}**  "
-                    f"{tr('flxw.scenes.source_search_badge') if scene.is_search else tr('flxw.scenes.source_generate_badge')}")
+                    f"{_source_badge(scene)}")
         st.caption(f"🗣️ {scene.narration}")
+
+        # Importing your own file is an alternative to BOTH generate and search
+        _render_import_control(engine, project, scene, index)
+
+        # ---- Imported scenes: show the applied media ----
+        if scene.is_import:
+            if scene.has_media:
+                st.success(tr("flxw.source.import_ready", "✅ Imported media applied"))
+                if scene.media_type == "video":
+                    video_bytes = _read_bytes(scene.video_path)
+                    if video_bytes:
+                        st.video(video_bytes)
+                else:
+                    image_bytes = _read_bytes(scene.image_path)
+                    if image_bytes:
+                        st.image(image_bytes, use_container_width=True)
+            return
 
         # ---- Generate scenes: nothing to source here ----
         if not scene.is_search:
@@ -916,7 +994,10 @@ def _scene_media_ready(project, scene) -> bool:
 def _scene_status_icons(project, scene) -> str:
     parts = [f"🎤{'✅' if scene.audio_path else '⬜'}"]
     is_search = isinstance(scene, FlexScene) and scene.is_search
-    if is_search:
+    is_import = isinstance(scene, FlexScene) and scene.is_import
+    if is_import:
+        parts.append(f"📥{'✅' if scene.has_media else '⬜'}")
+    elif is_search:
         parts.append(f"🔎{'✅' if scene.has_media else '⬜'}")
     elif project.is_i2v:
         # image → video: the still and the animated clip are separate steps
@@ -947,6 +1028,7 @@ async def _source_stock_media(engine: FlexibleVideoEngine, project, scene, index
 
 def _render_scene_card(engine: FlexibleVideoEngine, project, scene, index: int):
     is_search = isinstance(scene, FlexScene) and scene.is_search
+    is_import = isinstance(scene, FlexScene) and scene.is_import
 
     with st.container(border=True):
         head_l, head_r = st.columns([3, 1])
@@ -967,7 +1049,10 @@ def _render_scene_card(engine: FlexibleVideoEngine, project, scene, index: int):
             if _texts_differ(nval, scene.narration):
                 _apply_narration_change(project, scene, nval)
 
-            if project.needs_media and not is_search:
+            if is_import:
+                st.caption(tr("flxw.scenes.import_caption",
+                              "📥 Uses your imported media (re-import on the Source step)"))
+            elif project.needs_media and not is_search:
                 st.caption(tr("sbs.scenes.prompt_label"))
                 pkey = f"flxw_scene_prompt_{scene.uid}"
                 pval = _bind_text(pkey, scene.prompt or "", height=100, label="prompt")
@@ -992,7 +1077,7 @@ def _render_scene_card(engine: FlexibleVideoEngine, project, scene, index: int):
                     logger.exception(e)
                     st.error(tr("sbs.common.error", error=str(e)))
 
-            cols = st.columns(4 if (project.is_i2v and not is_search) else 3)
+            cols = st.columns(4 if (project.is_i2v and not is_search and not is_import) else 3)
 
             with cols[0]:
                 audio_label = tr("sbs.scenes.audio_regen") if scene.audio_path else tr("sbs.scenes.audio_btn")
@@ -1001,7 +1086,10 @@ def _render_scene_card(engine: FlexibleVideoEngine, project, scene, index: int):
                     _run_step(_stage_text("audio", index + 1),
                               lambda: engine.generate_audio(project, scene, index))
 
-            if is_search:
+            if is_import:
+                pass  # imported media: audio + segment only (re-import on Source step)
+
+            elif is_search:
                 with cols[1]:
                     stock_label = (tr("flxw.source.re_search_btn") if scene.has_media
                                    else tr("flxw.source.search_btn"))

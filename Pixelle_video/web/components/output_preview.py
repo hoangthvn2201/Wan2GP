@@ -61,6 +61,10 @@ def render_single_output(pixelle_video, video_params):
     custom_values_for_video = video_params.get("template_params", {})
     workflow_key = video_params.get("media_workflow")
     prompt_prefix = video_params.get("prompt_prefix", "")
+
+    # Per-scene media import (optional): prepared narrations + uploaded files
+    preset_narrations = video_params.get("narrations")
+    scene_media = video_params.get("scene_media")
     
     with st.container(border=True):
         st.markdown(f"**{tr('section.video_generation')}**")
@@ -154,7 +158,13 @@ def render_single_output(pixelle_video, video_params):
                 # Add custom template parameters if any
                 if custom_values_for_video:
                     video_params["template_params"] = custom_values_for_video
-                
+
+                # Per-scene media import: pass the prepared script + uploads
+                if preset_narrations:
+                    video_params["narrations"] = preset_narrations
+                if scene_media:
+                    video_params["scene_media"] = scene_media
+
                 result = run_async(pixelle_video.generate_video(**video_params))
                 
                 # Calculate total generation time

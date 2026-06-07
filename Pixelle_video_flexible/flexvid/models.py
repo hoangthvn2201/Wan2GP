@@ -88,7 +88,7 @@ class FlexScene(Scene):
     """Scene with a media-sourcing plan (generate vs stock search)."""
 
     # --- LLM media plan -------------------------------------------------
-    source: str = "generate"                 # "generate" | "search"
+    source: str = "generate"                 # "generate" | "search" | "import"
     plan_media_type: str = "image"           # intended kind when searching: "image" | "video"
     search_query: Optional[str] = None       # short English stock keywords (search only)
     plan_reason: str = ""                    # LLM's justification, shown in the UI
@@ -132,6 +132,11 @@ class FlexScene(Scene):
     def is_search(self) -> bool:
         """The scene still sources its media from stock search."""
         return self.source == "search" and not self.fell_back_to_generate
+
+    @property
+    def is_import(self) -> bool:
+        """The scene uses user-imported media."""
+        return self.source == "import"
 
     # ---- invalidation helpers ----
 

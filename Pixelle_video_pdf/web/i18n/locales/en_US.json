@@ -645,6 +645,11 @@
     "pdfw.setup.tts_normalize_label": "Normalize loudness (-16 LUFS)",
     "pdfw.setup.tts_normalize_help": "Brings the TTS voiceover up to the standard short-video loudness, whatever voice/backend is used. Fixes quiet narration — leave on unless you have a reason not to.",
     "pdfw.setup.tts_volume_label": "Extra volume gain",
-    "pdfw.setup.tts_volume_help": "Linear gain applied on top (1.0 = unchanged, 1.5 = +50%). A limiter prevents clipping. Usually unnecessary when normalization is on."
+    "pdfw.setup.tts_volume_help": "Linear gain applied on top (1.0 = unchanged, 1.5 = +50%). A limiter prevents clipping. Usually unnecessary when normalization is on.",
+    "sbs.scenes.import_label": "📥 Use my own image/video",
+    "sbs.scenes.import_hint": "The file is cropped/re-encoded to the project size; video clips are padded or trimmed to the narration length.",
+    "sbs.scenes.import_apply": "📥 Use this file",
+    "sbs.scenes.import_applying": "Importing media...",
+    "sbs.scenes.import_active": "✅ Currently using imported media"
   }
 }

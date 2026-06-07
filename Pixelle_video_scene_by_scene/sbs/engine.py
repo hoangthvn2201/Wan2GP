@@ -365,7 +365,10 @@ class SceneBySceneEngine:
         scene.segment_path = None
         # Video clips are length-synced to the audio: a (re)generated narration
         # invalidates any existing clip (the i2v start image stays valid).
-        if project.is_video_workflow and scene.video_path:
+        # Imported clips are NOT length-synced (the segment step pads/trims
+        # them), so they survive audio regeneration.
+        if (project.is_video_workflow and scene.video_path
+                and scene.media_origin != "imported"):
             scene.invalidate_video()
         logger.info(f"🎤 Scene {index + 1} audio ready ({scene.duration:.2f}s): {audio_path}")
         return scene
@@ -414,6 +417,7 @@ class SceneBySceneEngine:
             raise ValueError(f"Unknown media type: {media_result.media_type}")
 
         # Media changed -> previously rendered segment no longer matches
+        scene.media_origin = None   # freshly generated (replaces any import)
         scene.composed_path = None
         scene.segment_path = None
         return scene
@@ -446,6 +450,7 @@ class SceneBySceneEngine:
         )
         scene.image_path = local_path
         scene.media_type = "image"
+        scene.media_origin = None   # freshly generated (replaces any import)
         # New start image -> old animation + segment no longer match
         scene.video_path = None
         scene.invalidate_segment()
@@ -517,12 +522,66 @@ class SceneBySceneEngine:
 
         scene.video_path = local_path
         scene.media_type = "video"
+        scene.media_origin = None   # freshly generated (replaces any import)
         scene.invalidate_segment()
         # Keep the narration-driven duration unless the clip differs meaningfully
         clip_duration = await self._get_video_duration(local_path)
         if clip_duration > 1.0:
             scene.duration = clip_duration
         logger.info(f"🎬 Scene {index + 1} animated ({scene.duration:.2f}s): {local_path}")
+        return scene
+
+    # -------------------- Imported media --------------------
+
+    async def import_media(
+        self,
+        project: SceneProject,
+        scene: Scene,
+        index: int,
+        src_path: str,
+        original_name: Optional[str] = None,
+    ) -> Scene:
+        """
+        Use a user-supplied image/video as this scene's media instead of
+        generating it. The file is normalized into the canonical scene asset
+        (`<uid>_image.png` / `<uid>_video.mp4`) at the project size — videos
+        also re-encoded to the project fps so the final concat (demuxer,
+        `-c copy`) stays safe. Imported clips are not length-synced: the
+        segment step pads/trims them to the narration audio.
+        """
+        from Pixelle_video.pixelle_video.utils.imported_media import (
+            detect_media_kind,
+            normalize_imported_image,
+            normalize_imported_video,
+            target_media_size,
+        )
+
+        kind = detect_media_kind(original_name or src_path)
+        if kind is None:
+            raise ValueError(f"Unsupported media file: {original_name or src_path}")
+
+        width, height = target_media_size(project.config)
+
+        if kind == "video":
+            output_path = self.scene_asset_path(project, scene, "video")
+            normalize_imported_video(src_path, output_path,
+                                     fps=project.config.video_fps,
+                                     width=width, height=height)
+            scene.video_path = output_path
+            scene.image_path = None
+            scene.media_type = "video"
+        else:
+            output_path = self.scene_asset_path(project, scene, "image")
+            normalize_imported_image(src_path, output_path,
+                                     width=width, height=height)
+            scene.image_path = output_path
+            scene.video_path = None
+            scene.media_type = "image"
+
+        scene.media_origin = "imported"
+        # Media changed -> previously rendered segment no longer matches
+        scene.invalidate_segment()
+        logger.info(f"📥 Scene {index + 1} imported {kind} ready: {output_path}")
         return scene
 
     async def render_segment(self, project: SceneProject, scene: Scene, index: int) -> Scene:
@@ -603,7 +662,11 @@ class SceneBySceneEngine:
                 progress_callback("audio")
             await self.generate_audio(project, scene, index)
 
-        if project.is_i2v and scene.prompt:
+        if scene.media_origin == "imported" and scene.has_media:
+            # User-imported media is used as-is — nothing to generate (the
+            # i2v Animate button can still animate an imported still manually)
+            pass
+        elif project.is_i2v and scene.prompt:
             if not scene.image_path:
                 if progress_callback:
                     progress_callback("image_start")

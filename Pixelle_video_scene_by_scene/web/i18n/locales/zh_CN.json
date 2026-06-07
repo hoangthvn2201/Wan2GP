@@ -590,6 +590,11 @@
     "sbs.scenes.start_frame_caption": "🖼️ 首帧图片",
     "sbs.prompts.use_prefix": "✨ 应用风格前缀",
     "sbs.prompts.use_prefix_help": "开启时，视觉设置中的风格前缀会自动加在每条画面提示词前面（重新生成时也会使用）。切换会立即改写下方提示词，不调用 AI。",
-    "sbs.prompts.prefix_preview": "风格前缀：`{prefix}`"
+    "sbs.prompts.prefix_preview": "风格前缀：`{prefix}`",
+    "sbs.scenes.import_label": "📥 使用我自己的图片/视频",
+    "sbs.scenes.import_hint": "文件会被裁剪/转码到项目尺寸；视频会按口播时长补帧或裁剪。",
+    "sbs.scenes.import_apply": "📥 使用该文件",
+    "sbs.scenes.import_applying": "正在导入素材...",
+    "sbs.scenes.import_active": "✅ 当前使用导入的素材"
   }
 }

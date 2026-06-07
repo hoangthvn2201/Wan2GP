@@ -680,6 +680,13 @@
     "flxw.setup.sourcing_generate": "🎨 Generate-only (no stock search)",
     "flxw.setup.sourcing_help": "Auto: the AI picks stock search or AI generation per scene. Stock-only: every scene uses real stock media, no generation model is ever loaded (no GPU needed). Generate-only: stock search is never used — every scene is AI-generated and the Source Media step is skipped.",
     "flxw.setup.sourcing_stock_needs_keys": "⚠️ Stock-only needs a Pexels/Pixabay API key — without one, scenes will be AI-generated anyway.",
-    "flxw.plan.generate_only_info": "🎨 Generate-only project — stock search is disabled; every scene is AI-generated and the Source Media step is skipped."
+    "flxw.plan.generate_only_info": "🎨 Generate-only project — stock search is disabled; every scene is AI-generated and the Source Media step is skipped.",
+    "flxw.source.import_expander": "📥 Use my own image/video",
+    "flxw.source.import_hint": "The file is cropped/re-encoded to the project size; video clips are padded or trimmed to the narration length.",
+    "flxw.source.import_apply": "📥 Use this file",
+    "flxw.source.import_applying": "Importing media...",
+    "flxw.source.import_ready": "✅ Imported media applied",
+    "flxw.scenes.source_import_badge": "📥 Imported",
+    "flxw.scenes.import_caption": "📥 Uses your imported media (re-import on the Source step)"
   }
 }

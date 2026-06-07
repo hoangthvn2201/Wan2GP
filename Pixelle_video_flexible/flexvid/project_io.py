@@ -114,6 +114,11 @@ def _load_scene(data: dict) -> FlexScene:
         scene.duration = 0.0
     if not scene.has_media:
         scene.attribution = None
+        scene.media_origin = None
+        if scene.source == "import":
+            # The imported file is gone (fresh runtime / cleaned output) —
+            # fall back to generation instead of pointing at a ghost upload
+            scene.source = "generate"
     return scene
 
 

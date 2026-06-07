@@ -47,6 +47,11 @@ class Scene:
     composed_path: Optional[str] = None        # HTML-rendered frame (with subtitles)
     segment_path: Optional[str] = None         # final per-scene video segment
 
+    # 'imported' when the user supplied the media file; None when generated.
+    # Imported media is not length-synced to the narration (the segment step
+    # pads/trims it), so narration edits must NOT invalidate it.
+    media_origin: Optional[str] = None
+
     duration: float = 0.0                      # seconds (from TTS audio or generated video)
     created_at: datetime = field(default_factory=datetime.now)
 
@@ -63,6 +68,7 @@ class Scene:
         self.image_path = None
         self.video_path = None
         self.media_type = None
+        self.media_origin = None
         self.invalidate_segment()
 
     def invalidate_video(self):
@@ -134,6 +140,10 @@ class SceneProject:
         """Is this scene's media complete for segment rendering?"""
         if not self.needs_media:
             return True
+        if scene.media_origin == "imported":
+            # Imported media may be either kind regardless of the project mode
+            # (a still in a video project renders as a static segment)
+            return scene.has_media
         if self.is_video_workflow:
             return scene.video_path is not None
         return scene.image_path is not None

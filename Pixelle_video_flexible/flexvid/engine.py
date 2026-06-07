@@ -457,6 +457,26 @@ class FlexibleVideoEngine(SceneBySceneEngine):
                     f"(by {candidate.photographer or 'unknown'} on {candidate.source})")
         return scene
 
+    # ==================== Step: User-imported media ====================
+
+    async def import_media(self, project, scene, index, src_path, original_name=None):
+        """
+        Base import (normalize into the canonical scene asset) + flip the
+        scene's sourcing to 'import': search state and stock attribution are
+        cleared since the media now comes from the user, not a provider.
+        """
+        scene = await super().import_media(project, scene, index, src_path,
+                                           original_name=original_name)
+        if isinstance(scene, FlexScene):
+            scene.source = "import"
+            scene.search_query = None
+            scene.candidates = []
+            scene.picked_candidate_id = None
+            scene.search_attempted = False
+            scene.fell_back_to_generate = False
+            scene.attribution = None
+        return scene
+
     # ==================== Audio (stock clips are not length-synced) ====================
 
     async def generate_audio(self, project, scene, index: int):

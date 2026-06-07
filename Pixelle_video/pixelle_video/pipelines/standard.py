@@ -105,6 +105,15 @@ class StandardPipeline(LinearVideoPipeline):
 
     async def generate_content(self, ctx: PipelineContext):
         """Step 2: Generate or process script/narrations."""
+        # Pre-prepared narrations take precedence (e.g. the web UI's per-scene
+        # media import flow prepares the script first, so the scenes the user
+        # attached media to are exactly the scenes that get generated).
+        preset_narrations = ctx.params.get("narrations")
+        if preset_narrations:
+            ctx.narrations = [str(n) for n in preset_narrations]
+            logger.info(f"✅ Using {len(ctx.narrations)} pre-prepared narrations")
+            return
+
         mode = ctx.params.get("mode", "generate")
         text = ctx.input_text
         n_scenes = ctx.params.get("n_scenes", 5)
@@ -295,6 +304,72 @@ class StandardPipeline(LinearVideoPipeline):
                 created_at=datetime.now()
             )
             ctx.storyboard.frames.append(frame)
+
+        # Pre-assign user-imported media to frames (optional)
+        self._apply_scene_media_overrides(ctx)
+
+    def _apply_scene_media_overrides(self, ctx: PipelineContext):
+        """
+        Apply params['scene_media'] — a mapping of 0-based scene index to a
+        local image/video file the user wants to use INSTEAD of generating
+        media for that scene.
+
+        Each file is normalized into the task's canonical frame asset
+        (cover-crop to the project size; videos also re-encoded to the project
+        fps so the final concat demuxer (`-c copy`) stays safe), and the
+        frame's image_prompt is cleared so FrameProcessor skips generation and
+        uses the existing media (same contract as the asset-based pipeline).
+        """
+        scene_media = ctx.params.get("scene_media") or {}
+        if not scene_media:
+            return
+
+        from Pixelle_video.pixelle_video.utils.imported_media import (
+            detect_media_kind,
+            normalize_imported_image,
+            normalize_imported_video,
+            target_media_size,
+        )
+        from Pixelle_video.pixelle_video.utils.os_util import get_task_frame_path
+
+        width, height = target_media_size(ctx.config)
+        frames = ctx.storyboard.frames
+
+        for raw_index, src_path in scene_media.items():
+            index = int(raw_index)
+            if not (0 <= index < len(frames)):
+                logger.warning(f"scene_media index {index} out of range "
+                               f"({len(frames)} scenes), skipping")
+                continue
+            if not src_path or not Path(src_path).exists():
+                logger.warning(f"scene_media file for scene {index + 1} "
+                               f"not found: {src_path}, skipping")
+                continue
+            kind = detect_media_kind(src_path)
+            if kind is None:
+                raise ValueError(f"Unsupported imported media type for "
+                                 f"scene {index + 1}: {src_path}")
+
+            frame = frames[index]
+            if kind == "video":
+                output_path = get_task_frame_path(ctx.task_id, index, "video")
+                normalize_imported_video(src_path, output_path,
+                                         fps=ctx.config.video_fps,
+                                         width=width, height=height)
+                frame.video_path = output_path
+                frame.image_path = None
+                frame.media_type = "video"
+            else:
+                output_path = get_task_frame_path(ctx.task_id, index, "image")
+                normalize_imported_image(src_path, output_path,
+                                         width=width, height=height)
+                frame.image_path = output_path
+                frame.video_path = None
+                frame.media_type = "image"
+
+            # Existing media short-circuits generation in FrameProcessor
+            frame.image_prompt = None
+            logger.info(f"📥 Scene {index + 1} uses imported {kind}: {output_path}")
 
     async def produce_assets(self, ctx: PipelineContext):
         """Step 6: Generate audio, images, and render frames (Core processing)."""
