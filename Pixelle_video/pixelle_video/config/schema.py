@@ -53,8 +53,17 @@ class TTSVieNeuConfig(BaseModel):
     )
     speed: float = Field(default=1.0, ge=0.5, le=2.0, description="Speech speed multiplier (0.5-2.0)")
     ref_audio: Optional[str] = Field(default=None, description="Reference audio path for zero-shot voice cloning (overrides voice)")
-    mode: str = Field(default="turbo", description="VieNeu backend: 'turbo' (CPU-friendly GGUF/ONNX) or 'standard'/'fast' (GPU)")
-    device: str = Field(default="cpu", description="Inference device: 'cpu' or 'cuda'")
+    ref_text: Optional[str] = Field(default=None, description="Transcript of ref_audio (required for cloning in 'max'/'standard' modes, ignored in turbo)")
+    mode: str = Field(
+        default="turbo",
+        description=(
+            "Quality tier: 'max' (full-precision PyTorch backbone + full NeuCodec, best quality, "
+            "GPU recommended, needs the max-quality extras of requirements-vieneu.txt), "
+            "'standard' (Q4 GGUF + int8 ONNX, no extra deps) or 'turbo' (fastest, lowest quality). "
+            "Each tier falls back to the next on failure."
+        ),
+    )
+    device: str = Field(default="cpu", description="Inference device: 'cpu' or 'cuda' (falls back to cpu if CUDA unavailable)")
 
 
 class TTSComfyUIConfig(BaseModel):

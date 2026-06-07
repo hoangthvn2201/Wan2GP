@@ -19,8 +19,9 @@ comfyui:
       voice: Xuân Vĩnh (Nam - Miền Nam)
       speed: 1.0
       ref_audio: null
-      mode: turbo
-      device: cpu
+      ref_text: null
+      mode: max
+      device: cuda
     comfyui:
       default_workflow: null
   image:

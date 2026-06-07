@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="template:media-width" content="1024">
+    <meta name="template:media-height" content="1024">
+    <meta name="viewport" content="width=1080, height=1920">
+    <title>Chầm chậm mà hiểu - 1080x1920</title>
+    <!-- Google Fonts with Vietnamese subset -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Be+Vietnam+Pro:ital,wght@0,400;0,500;0,600;0,700;1,500&family=Dancing+Script:wght@600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        html, body { width: 1080px; height: 1920px; overflow: hidden; }
+
+        :root {
+            --cream: #FBF4EB;
+            --navy: #1E2A52;
+            --coral: #F2784B;
+            --rose: #E85A8A;
+            --teal: #2BB3A3;
+            --amber: #F5B940;
+            --purple: #8B6FC9;
+        }
+
+        body {
+            font-family: 'Be Vietnam Pro', 'PingFang SC', -apple-system, sans-serif;
+            background: var(--cream);
+            color: var(--navy);
+            position: relative;
+        }
+
+        /* ===== soft ambient blobs (top corners) ===== */
+        .blob {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(60px);
+            opacity: 0.35;
+            z-index: 0;
+        }
+        .blob-coral { width: 480px; height: 480px; top: -180px; left: -160px;
+            background: radial-gradient(circle, var(--coral), transparent 70%); }
+        .blob-teal { width: 420px; height: 420px; top: -140px; right: -140px;
+            background: radial-gradient(circle, var(--teal), transparent 70%); }
+
+        /* ===== sparkles ===== */
+        .sparkle {
+            position: absolute;
+            font-size: 44px;
+            z-index: 2;
+            opacity: 0.85;
+        }
+        .sparkle.small { font-size: 28px; opacity: 0.6; }
+
+        /* ===== header: logo + channel wordmark ===== */
+        .header {
+            position: absolute;
+            top: 64px;
+            left: 0;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 24px;
+            z-index: 3;
+        }
+        .header .logo {
+            width: 132px;
+            height: 132px;
+            object-fit: contain;
+            filter: drop-shadow(0 6px 16px rgba(30, 42, 82, 0.18));
+        }
+        .wordmark { display: flex; flex-direction: column; line-height: 1; }
+        .wordmark .line1 {
+            font-family: 'Baloo 2', cursive;
+            font-weight: 800;
+            font-size: 58px;
+            color: var(--navy);
+            letter-spacing: 1px;
+        }
+        .wordmark .line2 {
+            font-family: 'Dancing Script', cursive;
+            font-weight: 700;
+            font-size: 56px;
+            margin-top: 2px;
+            background: linear-gradient(90deg, var(--coral) 0%, var(--rose) 45%, var(--teal) 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        /* ===== title ===== */
+        .title-wrap {
+            position: absolute;
+            top: 250px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 920px;
+            text-align: center;
+            z-index: 3;
+        }
+        .title {
+            font-family: 'Baloo 2', cursive;
+            font-weight: 800;
+            font-size: 84px;
+            line-height: 1.22;
+            color: var(--navy);
+        }
+        /* gradient underline brush below title */
+        .title-wrap::after {
+            content: '';
+            display: block;
+            width: 220px;
+            height: 12px;
+            margin: 26px auto 0;
+            border-radius: 8px;
+            background: linear-gradient(90deg, var(--coral), var(--amber), var(--teal));
+        }
+
+        /* ===== media card with gradient ring ===== */
+        .media-ring {
+            position: absolute;
+            top: 46.5%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 900px;
+            height: 900px;
+            padding: 12px;
+            border-radius: 64px;
+            background: linear-gradient(135deg, var(--coral) 0%, var(--rose) 30%, var(--purple) 60%, var(--teal) 100%);
+            box-shadow: 0 30px 70px rgba(30, 42, 82, 0.22);
+            z-index: 3;
+        }
+        .media-card {
+            width: 100%;
+            height: 100%;
+            border-radius: 54px;
+            background: var(--cream);
+            padding: 14px;
+        }
+        .media-card img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 44px;
+            display: block;
+        }
+        /* puzzle piece accent on the ring */
+        .puzzle-accent {
+            position: absolute;
+            font-size: 64px;
+            transform: rotate(-15deg);
+            top: -28px;
+            right: 36px;
+            filter: drop-shadow(0 4px 10px rgba(30,42,82,0.25));
+        }
+
+        /* ===== caption / narration text ===== */
+        .caption {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            bottom: 430px;
+            width: 900px;
+            text-align: center;
+            font-family: 'Be Vietnam Pro', sans-serif;
+            font-weight: 600;
+            font-size: 52px;
+            line-height: 1.5;
+            color: var(--navy);
+            z-index: 4;
+            text-shadow:
+                -2px -2px 0 var(--cream), 2px -2px 0 var(--cream),
+                -2px 2px 0 var(--cream), 2px 2px 0 var(--cream),
+                0 4px 18px rgba(251, 244, 235, 0.9);
+        }
+
+        /* ===== bottom waves (brand panel) ===== */
+        .waves {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 380px;
+            z-index: 2;
+        }
+        .waves svg { position: absolute; bottom: 0; left: 0; width: 100%; height: 100%; }
+
+        /* ===== footer tagline on the waves ===== */
+        .footer {
+            position: absolute;
+            bottom: 64px;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            z-index: 5;
+        }
+        .tagline {
+            font-family: 'Be Vietnam Pro', sans-serif;
+            font-weight: 700;
+            font-size: 28px;
+            letter-spacing: 2px;
+            white-space: nowrap;
+            color: #ffffff;
+            text-shadow: 0 3px 12px rgba(30, 42, 82, 0.35);
+        }
+        .yt-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 14px;
+            margin-top: 22px;
+            padding: 12px 34px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.92);
+            box-shadow: 0 6px 20px rgba(30, 42, 82, 0.25);
+            font-family: 'Baloo 2', cursive;
+            font-weight: 700;
+            font-size: 32px;
+            color: var(--navy);
+        }
+        .yt-play {
+            width: 44px; height: 32px;
+            background: #FF0033;
+            border-radius: 9px;
+            position: relative;
+            flex: none;
+        }
+        .yt-play::after {
+            content: '';
+            position: absolute;
+            top: 50%; left: 55%;
+            transform: translate(-50%, -50%);
+            border-left: 13px solid #fff;
+            border-top: 8px solid transparent;
+            border-bottom: 8px solid transparent;
+        }
+    </style>
+</head>
+<body>
+    <!-- ambient color blobs -->
+    <div class="blob blob-coral"></div>
+    <div class="blob blob-teal"></div>
+
+    <!-- sparkles -->
+    <div class="sparkle" style="top: 215px; left: 84px; color: var(--amber);">✦</div>
+    <div class="sparkle small" style="top: 175px; right: 110px; color: var(--rose);">✦</div>
+    <div class="sparkle small" style="top: 560px; left: 60px; color: var(--teal);">✦</div>
+    <div class="sparkle" style="top: 620px; right: 64px; color: var(--coral);">✦</div>
+    <div class="sparkle small" style="bottom: 470px; left: 96px; color: var(--purple);">✦</div>
+    <div class="sparkle small" style="bottom: 500px; right: 90px; color: var(--amber);">✦</div>
+
+    <!-- header -->
+    <div class="header">
+        <img class="logo" src="{{logo=file:///home/hoang/code/Wan2GP/Pixelle_video/data/templates/assets/chamcham/logo_youtube.png}}" alt="logo">
+        <div class="wordmark">
+            <div class="line1">{{brand_line1=Chầm chậm}}</div>
+            <div class="line2">{{brand_line2=mà hiểu}}</div>
+        </div>
+    </div>
+
+    <!-- title -->
+    <div class="title-wrap">
+        <div class="title">{{title}}</div>
+    </div>
+
+    <!-- media with gradient ring -->
+    <div class="media-ring">
+        <div class="media-card">
+            <img src="{{image}}" alt="scene">
+        </div>
+        <div class="puzzle-accent">🧩</div>
+    </div>
+
+    <!-- narration caption -->
+    <div class="caption">{{text}}</div>
+
+    <!-- brand waves -->
+    <div class="waves">
+        <svg viewBox="0 0 1080 380" preserveAspectRatio="none">
+            <defs>
+                <linearGradient id="waveWarm" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stop-color="#F2784B"/>
+                    <stop offset="55%" stop-color="#E85A8A"/>
+                    <stop offset="100%" stop-color="#F5B940"/>
+                </linearGradient>
+                <linearGradient id="waveCool" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stop-color="#E85A8A"/>
+                    <stop offset="50%" stop-color="#8B6FC9"/>
+                    <stop offset="100%" stop-color="#2BB3A3"/>
+                </linearGradient>
+                <linearGradient id="waveDeep" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stop-color="#F2784B"/>
+                    <stop offset="100%" stop-color="#2BB3A3"/>
+                </linearGradient>
+            </defs>
+            <path fill="url(#waveWarm)" opacity="0.55"
+                d="M0,150 C180,90 320,210 540,160 C760,110 900,200 1080,130 L1080,380 L0,380 Z"/>
+            <path fill="url(#waveCool)" opacity="0.75"
+                d="M0,220 C200,160 400,260 620,210 C840,160 960,250 1080,200 L1080,380 L0,380 Z"/>
+            <path fill="url(#waveDeep)"
+                d="M0,290 C220,240 420,330 640,285 C860,240 980,320 1080,275 L1080,380 L0,380 Z"/>
+        </svg>
+    </div>
+
+    <!-- footer -->
+    <div class="footer">
+        <div class="tagline">{{tagline=HIỂU TÂM LÝ · HIỂU CHÍNH MÌNH · SỐNG NHẸ NHÀNG HƠN}}</div>
+        <div class="yt-chip"><span class="yt-play"></span>{{handle=Chầm chậm mà hiểu}}</div>
+    </div>
+
+    <script>
+        // Auto-fit the title so long hooks never overflow the 920px column
+        function autoFitTitle() {
+            const el = document.querySelector('.title');
+            if (!el || !el.textContent.trim()) return;
+            let size = 84;
+            const minSize = 52;
+            el.style.fontSize = size + 'px';
+            // shrink until it fits within 3 lines
+            while (size > minSize && el.scrollHeight > size * 1.22 * 3 + 8) {
+                size -= 2;
+                el.style.fontSize = size + 'px';
+            }
+        }
+
+        // On later scenes (index > 1) hide the big title block and
+        // re-center the media so the video flows scene-to-scene
+        const index = Number("{{index}}") || 1;
+        document.addEventListener('DOMContentLoaded', () => {
+            autoFitTitle();
+            if (index > 1) {
+                document.querySelector('.title-wrap').style.display = 'none';
+                document.querySelector('.media-ring').style.top = '42%';
+            }
+        });
+    </script>
+</body>
+</html>

@@ -29,3 +29,25 @@ llama-cpp-python==0.3.16      # GGUF backbone runtime (sdist on Linux — needs 
 resemble-perth>=1.0.1         # audio watermarking, imports as `perth` (NOTE: the PyPI package named `perth` that
                               # vieneu's own pyproject lists is an unrelated threading library — vieneu silently
                               # falls back to no watermarking with it; resemble-perth is the real watermarker)
+
+# ----------------------------------------------------------------------------
+# OPTIONAL extras for `tts.vieneu.mode: max` (full-precision VieNeu-TTS-v2
+# PyTorch backbone + full NeuCodec codec — best audio quality + high-fidelity
+# voice cloning). Without these, "max" automatically falls back to "standard".
+#
+# NOT in the pip-installable list below because neucodec must be installed
+# with --no-deps: it hard-pins vector-quantize-pytorch==1.17.8 (Wan2GP pins
+# 1.27.19 — the ResidualFSQ API neucodec uses is compatible with 1.27) and
+# re-declares torch/torchaudio, which could clobber the CUDA-specific torch
+# already in the env. torch/torchaudio/transformers/einops are assumed
+# present from the Wan2GP install.
+#
+# INSTALL (after the base install above):
+#
+#   pip install torchao torchtune local-attention
+#   pip install neucodec==0.0.5 --no-deps
+#
+# (torchtune provides RotaryPositionalEmbeddings used by NeuCodec's decoder
+#  and hard-requires torchao at import time; local-attention is used by the
+#  distill encoder module that neucodec imports unconditionally.)
+# ----------------------------------------------------------------------------

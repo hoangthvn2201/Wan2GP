@@ -136,6 +136,7 @@ class TTSService(ComfyBaseService):
                 voice=voice,
                 speed=speed,
                 ref_audio=params.pop("ref_audio", None),
+                ref_text=params.pop("ref_text", None),
                 output_path=output_path
             )
         else:  # comfyui
@@ -216,6 +217,7 @@ class TTSService(ComfyBaseService):
         voice: Optional[str] = None,
         speed: Optional[float] = None,
         ref_audio: Optional[str] = None,
+        ref_text: Optional[str] = None,
         output_path: Optional[str] = None,
     ) -> str:
         """
@@ -226,6 +228,8 @@ class TTSService(ComfyBaseService):
             voice: VieNeu preset voice ID (fuzzy-matched; default: from config, None = model default)
             speed: Speech speed multiplier (default: from config)
             ref_audio: Optional reference audio for zero-shot voice cloning
+            ref_text: Transcript of ref_audio (required for cloning in
+                      "max"/"standard" modes, ignored in turbo mode)
             output_path: Custom output path (auto-generated if None)
 
         Returns:
@@ -238,6 +242,7 @@ class TTSService(ComfyBaseService):
         final_voice = voice or vieneu_config.get("voice") or None
         final_speed = speed if speed is not None else vieneu_config.get("speed", 1.0)
         final_ref_audio = ref_audio or vieneu_config.get("ref_audio")
+        final_ref_text = ref_text or vieneu_config.get("ref_text")
         mode = vieneu_config.get("mode", "turbo")
         device = vieneu_config.get("device", "cpu")
 
@@ -257,6 +262,7 @@ class TTSService(ComfyBaseService):
                 voice=final_voice,
                 speed=final_speed,
                 ref_audio=final_ref_audio,
+                ref_text=final_ref_text,
                 output_path=output_path,
                 mode=mode,
                 device=device,

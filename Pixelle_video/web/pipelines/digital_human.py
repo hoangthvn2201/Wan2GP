@@ -389,6 +389,7 @@ class DigitalHumanPipelineUI(PipelineUI):
                             tts_speed = video_params.get("tts_speed")
                             tts_workflow = video_params.get("tts_workflow")
                             ref_audio = video_params.get("ref_audio")
+                            ref_text = video_params.get("ref_text")
 
                             tts_kwargs = {
                                 "text": generated_text,
@@ -403,6 +404,8 @@ class DigitalHumanPipelineUI(PipelineUI):
                                 tts_kwargs["speed"] = tts_speed
                                 if ref_audio:
                                     tts_kwargs["ref_audio"] = ref_audio
+                                    if ref_text:
+                                        tts_kwargs["ref_text"] = ref_text
                             elif tts_inference_mode == "comfyui":
                                 if tts_workflow:
                                     tts_kwargs["workflow"] = tts_workflow
@@ -488,6 +491,7 @@ class DigitalHumanPipelineUI(PipelineUI):
                                 tts_speed = video_params.get("tts_speed")
                                 tts_workflow = video_params.get("tts_workflow")
                                 ref_audio = video_params.get("ref_audio")
+                                ref_text = video_params.get("ref_text")
 
                                 tts_kwargs = {
                                     "text": generated_text,
@@ -502,6 +506,8 @@ class DigitalHumanPipelineUI(PipelineUI):
                                     tts_kwargs["speed"] = tts_speed
                                     if ref_audio:
                                         tts_kwargs["ref_audio"] = ref_audio
+                                        if ref_text:
+                                            tts_kwargs["ref_text"] = ref_text
                                 elif tts_inference_mode == "comfyui":
                                     if tts_workflow:
                                         tts_kwargs["workflow"] = tts_workflow
@@ -574,6 +580,7 @@ class DigitalHumanPipelineUI(PipelineUI):
                                 tts_speed = video_params.get("tts_speed")
                                 tts_workflow = video_params.get("tts_workflow")
                                 ref_audio = video_params.get("ref_audio")
+                                ref_text = video_params.get("ref_text")
 
                                 tts_kwargs = {
                                     "text": generated_text,
@@ -588,6 +595,8 @@ class DigitalHumanPipelineUI(PipelineUI):
                                     tts_kwargs["speed"] = tts_speed
                                     if ref_audio:
                                         tts_kwargs["ref_audio"] = ref_audio
+                                        if ref_text:
+                                            tts_kwargs["ref_text"] = ref_text
                                 elif tts_inference_mode == "comfyui":
                                     if tts_workflow:
                                         tts_kwargs["workflow"] = tts_workflow

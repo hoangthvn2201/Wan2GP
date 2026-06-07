@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="template:media-width" content="1024">
+    <meta name="template:media-height" content="1536">
+    <meta name="viewport" content="width=1080, height=1920">
+    <title>Chầm chậm mà hiểu - clean (no text) - 1080x1920</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        html, body { width: 1080px; height: 1920px; overflow: hidden; }
+
+        :root {
+            --cream: #FBF4EB;
+            --coral: #F2784B;
+            --rose: #E85A8A;
+            --teal: #2BB3A3;
+            --amber: #F5B940;
+            --purple: #8B6FC9;
+        }
+
+        body {
+            background: var(--cream);
+            position: relative;
+        }
+
+        /* soft ambient blobs */
+        .blob {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(70px);
+            opacity: 0.3;
+            z-index: 0;
+        }
+        .blob-coral { width: 460px; height: 460px; top: -160px; left: -150px;
+            background: radial-gradient(circle, var(--coral), transparent 70%); }
+        .blob-teal { width: 420px; height: 420px; bottom: -140px; right: -130px;
+            background: radial-gradient(circle, var(--teal), transparent 70%); }
+
+        /* sparkles */
+        .sparkle { position: absolute; font-size: 36px; opacity: 0.7; z-index: 2; }
+        .sparkle.small { font-size: 24px; opacity: 0.5; }
+
+        /* media card with gradient ring, fills most of the frame */
+        .media-ring {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 984px;
+            height: 1684px;
+            padding: 10px;
+            border-radius: 60px;
+            background: linear-gradient(160deg, var(--coral) 0%, var(--rose) 30%, var(--purple) 60%, var(--teal) 100%);
+            box-shadow: 0 28px 64px rgba(30, 42, 82, 0.2);
+            z-index: 3;
+        }
+        .media-card {
+            width: 100%;
+            height: 100%;
+            border-radius: 52px;
+            background: var(--cream);
+            padding: 12px;
+        }
+        .media-card img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 42px;
+            display: block;
+        }
+
+        /* logo mark watermark, bottom center over the media */
+        .logo-mark {
+            position: absolute;
+            bottom: 64px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 124px;
+            height: 124px;
+            padding: 10px;
+            border-radius: 50%;
+            background: rgba(251, 244, 235, 0.92);
+            box-shadow: 0 8px 24px rgba(30, 42, 82, 0.25);
+            z-index: 4;
+        }
+        .logo-mark img { width: 100%; height: 100%; object-fit: contain; }
+    </style>
+</head>
+<body>
+    <div class="blob blob-coral"></div>
+    <div class="blob blob-teal"></div>
+
+    <div class="sparkle" style="top: 70px; right: 70px; color: var(--amber);">✦</div>
+    <div class="sparkle small" style="top: 130px; left: 64px; color: var(--rose);">✦</div>
+    <div class="sparkle small" style="bottom: 110px; left: 80px; color: var(--teal);">✦</div>
+    <div class="sparkle small" style="bottom: 80px; right: 84px; color: var(--coral);">✦</div>
+
+    <div class="media-ring">
+        <div class="media-card">
+            <img src="{{image}}" alt="scene">
+        </div>
+    </div>
+
+    <div class="logo-mark">
+        <img src="{{logo=file:///home/hoang/code/Wan2GP/Pixelle_video/data/templates/assets/chamcham/logo_youtube.png}}" alt="logo">
+    </div>
+</body>
+</html>

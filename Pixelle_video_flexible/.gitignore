@@ -1,0 +1,3 @@
+# 24h stock-search response cache (Pixabay API terms require request caching)
+.search_cache/
+__pycache__/

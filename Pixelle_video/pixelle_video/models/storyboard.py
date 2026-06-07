@@ -45,6 +45,7 @@ class StoryboardConfig:
     tts_workflow: Optional[str] = None         # TTS workflow filename (for ComfyUI mode, None = use default)
     tts_speed: Optional[float] = None          # TTS speed multiplier (0.5-2.0, 1.0 = normal)
     ref_audio: Optional[str] = None            # Reference audio for voice cloning (vieneu/ComfyUI modes)
+    ref_text: Optional[str] = None             # Transcript of ref_audio (required for cloning in vieneu max/standard modes)
     
     # Media workflow
     media_workflow: Optional[str] = None       # Media workflow filename (image or video, None = use default)

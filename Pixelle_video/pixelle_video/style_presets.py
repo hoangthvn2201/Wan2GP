@@ -30,6 +30,26 @@ DEFAULT_STYLE_ID = "matchstick"
 
 STYLE_PROMPT_PREFIXES: List[Dict[str, Any]] = [
     {
+        # Brand style for the "Chầm chậm mà hiểu" YouTube Shorts channel
+        # (Vietnamese psychology / self-understanding). Matches the channel
+        # logo & panel in materials/: cream paper background, flowing
+        # coral-pink-teal gradient waves, calm flat-vector characters,
+        # puzzle / light bulb / heart / sparkle motifs.
+        "id": "cham_cham",
+        "label_en": "Chầm Chậm Mà Hiểu (Channel Brand)",
+        "label_zh": "慢慢才懂（频道品牌风格）",
+        "prefix": (
+            "Heartwarming flat vector illustration in a gentle psychology-healing style, "
+            "soft warm cream paper background, flowing organic gradient waves of coral orange, "
+            "rose pink, golden amber and turquoise teal, calm characters with serene "
+            "closed-eye expressions drawn in clean rounded shapes with deep navy hair and accents, "
+            "colorful puzzle pieces, glowing light bulbs, speech bubbles, small hearts and tiny "
+            "four-pointed sparkles floating around as metaphors for thoughts and emotions, "
+            "generous negative space, soothing pastel palette with vivid gradient highlights, "
+            "cozy, mindful, emotionally comforting atmosphere"
+        ),
+    },
+    {
         "id": "matchstick",
         "label_en": "Matchstick Sketch (Default)",
         "label_zh": "火柴人简笔画（默认）",
